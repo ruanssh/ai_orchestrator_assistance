@@ -169,8 +169,10 @@ class AIOrchestrator:
             "fragmentos ou limitações dos documentos. Não diga 'não encontrei' ou 'não está detalhado'. "
             "Se faltar um dado essencial, diga o que é possível orientar e faça uma pergunta curta para continuar."
             if evidence else
-            "Nenhuma evidência corporativa foi selecionada. Converse naturalmente. Se pedirem uma regra interna, "
-            "faça uma pergunta curta para esclarecer, sem inventar informações."
+            "Nenhuma evidência corporativa foi selecionada. Se for saudação ou conversa casual, responda "
+            "natural e breve. Se a pergunta for sobre SQMS/compras/aprovações mas só faltar evidência, faça "
+            "uma pergunta curta para esclarecer, sem inventar informações. Se for qualquer outro assunto, "
+            "siga a regra de escopo do system prompt: recuse o conteúdo e ofereça no que pode ajudar."
         )
         messages = [
             ChatMessage(role="system", content=f"{flow.system_prompt}\n\n{evidence_instruction}"),
