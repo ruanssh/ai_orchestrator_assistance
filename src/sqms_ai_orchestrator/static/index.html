@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SQMS Assistente</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #090b10;
+      --panel: #10141c;
+      --panel-2: #171c26;
+      --line: #262d3a;
+      --text: #f2f5f8;
+      --muted: #929baa;
+      --brand: #68e0b0;
+      --brand-dark: #163c31;
+      --blue: #8ebcff;
+      --danger: #ff8a8a;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 12% 15%, rgba(69, 179, 142, .13), transparent 28rem),
+        radial-gradient(circle at 90% 85%, rgba(72, 113, 183, .1), transparent 32rem),
+        var(--bg);
+      color: var(--text);
+      font: 15px/1.55 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, input, textarea { font: inherit; }
+    button { color: inherit; }
+
+    .shell {
+      width: min(1120px, 100%);
+      min-height: 100vh;
+      margin: auto;
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 250px minmax(0, 1fr);
+      gap: 18px;
+    }
+
+    .sidebar, .workspace {
+      border: 1px solid var(--line);
+      background: rgba(16, 20, 28, .92);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, .25);
+    }
+
+    .sidebar {
+      border-radius: 22px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 13px;
+      display: grid;
+      place-items: center;
+      background: var(--brand);
+      color: #09251c;
+      font-weight: 900;
+      letter-spacing: -.08em;
+    }
+
+    h1 { margin: 14px 0 2px; font-size: 19px; letter-spacing: -.02em; }
+    .subtitle { color: var(--muted); font-size: 12px; }
+
+    .mode-list { margin-top: 30px; display: grid; gap: 8px; }
+    .mode {
+      border: 0;
+      border-radius: 11px;
+      background: transparent;
+      padding: 11px 12px;
+      text-align: left;
+      cursor: pointer;
+      color: var(--muted);
+    }
+    .mode.active { background: var(--panel-2); color: var(--text); }
+    .mode small { display: block; margin-top: 2px; color: var(--muted); }
+
+    .status-card {
+      margin-top: auto;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .status-row { display: flex; align-items: center; gap: 8px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #e5a84d; }
+    .dot.online { background: var(--brand); box-shadow: 0 0 14px var(--brand); }
+    .dot.offline { background: var(--danger); }
+    #healthDetails { margin-top: 8px; }
+
+    .workspace {
+      min-height: calc(100vh - 48px);
+      border-radius: 22px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      min-height: 75px;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+    header strong { display: block; font-size: 16px; }
+    header span { color: var(--muted); font-size: 12px; }
+
+    .ghost {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px 12px;
+      background: transparent;
+      cursor: pointer;
+    }
+    .ghost:hover { border-color: #465166; }
+
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px clamp(18px, 4vw, 48px);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .empty {
+      margin: auto;
+      max-width: 560px;
+      text-align: center;
+      color: var(--muted);
+    }
+    .empty h2 { color: var(--text); font-size: clamp(24px, 4vw, 38px); line-height: 1.1; margin: 0 0 12px; }
+    .suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 24px; }
+    .suggestion {
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      border-radius: 999px;
+      padding: 8px 13px;
+      cursor: pointer;
+      color: #cad0d9;
+      font-size: 13px;
+    }
+
+    .message { width: min(720px, 94%); }
+    .message.user { align-self: flex-end; }
+    .message.assistant { align-self: flex-start; }
+    .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .09em; margin: 0 0 5px 3px; }
+    .bubble { border-radius: 16px; padding: 14px 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .user .bubble { background: var(--brand-dark); border: 1px solid #255a4a; }
+    .assistant .bubble { background: var(--panel-2); border: 1px solid var(--line); }
+    .error .bubble { border-color: #713b43; color: #ffb5bd; }
+
+    .sources { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 7px; }
+    .source {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 5px 8px;
+      color: var(--blue);
+      background: #111824;
+      font-size: 11px;
+    }
+
+    .search-card {
+      width: min(760px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      padding: 15px;
+      background: var(--panel-2);
+    }
+    .search-card + .search-card { margin-top: 4px; }
+    .search-meta { color: var(--brand); font-size: 11px; margin-bottom: 5px; }
+    .search-card strong { display: block; margin-bottom: 8px; }
+    .search-content { white-space: pre-wrap; color: #c8ced7; }
+
+    .composer-wrap { padding: 14px 20px 20px; border-top: 1px solid var(--line); }
+    .composer {
+      max-width: 790px;
+      margin: auto;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      gap: 10px;
+      border: 1px solid #343d4e;
+      border-radius: 16px;
+      padding: 9px;
+      background: #0d1118;
+    }
+    textarea {
+      width: 100%;
+      min-height: 44px;
+      max-height: 150px;
+      resize: none;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--text);
+      padding: 10px;
+    }
+    textarea::placeholder { color: #667080; }
+    #send {
+      min-width: 48px;
+      height: 44px;
+      border: 0;
+      border-radius: 11px;
+      background: var(--brand);
+      color: #09251c;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    #send:disabled { opacity: .45; cursor: wait; }
+    .hint { max-width: 790px; margin: 7px auto 0; text-align: center; color: #606a79; font-size: 10px; }
+
+    .loader { display: inline-flex; gap: 4px; }
+    .loader i { width: 5px; height: 5px; border-radius: 50%; background: var(--brand); animation: pulse 1s infinite alternate; }
+    .loader i:nth-child(2) { animation-delay: .2s; }
+    .loader i:nth-child(3) { animation-delay: .4s; }
+    @keyframes pulse { to { opacity: .25; transform: translateY(-3px); } }
+
+    @media (max-width: 760px) {
+      .shell { padding: 0; display: block; }
+      .sidebar { min-height: auto; border-width: 0 0 1px; border-radius: 0; padding: 14px 18px; flex-direction: row; align-items: center; gap: 12px; }
+      .brand-mark { width: 36px; height: 36px; }
+      .sidebar h1 { margin: 0; }
+      .subtitle, .status-card { display: none; }
+      .mode-list { margin: 0 0 0 auto; display: flex; }
+      .mode { padding: 8px 10px; }
+      .mode small { display: none; }
+      .workspace { min-height: calc(100vh - 65px); border: 0; border-radius: 0; }
+      header { padding: 13px 16px; }
+      #messages { padding: 20px 14px; }
+      .composer-wrap { padding: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <aside class="sidebar">
+      <div class="brand-mark">SQ</div>
+      <div>
+        <h1>SQMS Assistente</h1>
+        <div class="subtitle">Compras e procedimentos</div>
+      </div>
+
+      <nav class="mode-list" aria-label="Modo de teste">
+        <button class="mode active" data-mode="chat">Chat <small>Resposta final da IA</small></button>
+        <button class="mode" data-mode="search">Busca RAG <small>Trechos recuperados</small></button>
+      </nav>
+
+      <div class="status-card">
+        <div class="status-row"><span class="dot" id="statusDot"></span><span id="statusText">Verificando API...</span></div>
+        <div id="healthDetails"></div>
+      </div>
+    </aside>
+
+    <section class="workspace">
+      <header>
+        <div><strong id="viewTitle">Conversa</strong><span id="viewDescription">Pergunte sobre cotações e processos do SQMS</span></div>
+        <button class="ghost" id="clear">Nova conversa</button>
+      </header>
+
+      <div id="messages">
+        <div class="empty" id="empty">
+          <h2>Como posso ajudar no SQMS?</h2>
+          <div>Teste o chatbot usando perguntas reais dos colaboradores.</div>
+          <div class="suggestions">
+            <button class="suggestion">Como crio uma cotação?</button>
+            <button class="suggestion">Como adiciono um aprovador?</button>
+            <button class="suggestion">Quais campos preciso preencher?</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="composer-wrap">
+        <form class="composer" id="form">
+          <textarea id="input" rows="1" maxlength="12000" placeholder="Pergunte sobre o SQMS..." required></textarea>
+          <button id="send" type="submit" aria-label="Enviar">➜</button>
+        </form>
+        <div class="hint">Enter envia. Shift + Enter cria uma nova linha.</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const state = { mode: 'chat', sessionId: null, busy: false };
+    const messages = document.querySelector('#messages');
+    const empty = document.querySelector('#empty');
+    const input = document.querySelector('#input');
+    const send = document.querySelector('#send');
+
+    function setMode(mode) {
+      state.mode = mode;
+      document.querySelectorAll('.mode').forEach(button => button.classList.toggle('active', button.dataset.mode === mode));
+      document.querySelector('#viewTitle').textContent = mode === 'chat' ? 'Conversa' : 'Teste de recuperação';
+      document.querySelector('#viewDescription').textContent = mode === 'chat'
+        ? 'Pergunte sobre cotações e processos do SQMS'
+        : 'Veja exatamente quais seções o RAG encontra';
+      input.placeholder = mode === 'chat' ? 'Pergunte sobre o SQMS...' : 'Digite uma consulta de recuperação...';
+      clearView(false);
+    }
+
+    function addMessage(role, text, sources = [], isError = false) {
+      empty?.remove();
+      const wrapper = document.createElement('div');
+      wrapper.className = `message ${role}${isError ? ' error' : ''}`;
+
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = role === 'user' ? 'Você' : 'Assistente';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.textContent = text;
+      wrapper.append(label, bubble);
+
+      if (sources.length) {
+        const sourceList = document.createElement('div');
+        sourceList.className = 'sources';
+        sources.forEach(item => {
+          const source = document.createElement('span');
+          source.className = 'source';
+          source.textContent = `${item.document} · ${item.section}${item.lines ? ` · L${item.lines}` : ''}`;
+          sourceList.append(source);
+        });
+        wrapper.append(sourceList);
+      }
+
+      messages.append(wrapper);
+      messages.scrollTop = messages.scrollHeight;
+      return wrapper;
+    }
+
+    function addSearchResults(results) {
+      if (!results.length) {
+        addMessage('assistant', 'Nenhum trecho encontrado.');
+        return;
+      }
+      results.forEach((item, index) => {
+        const card = document.createElement('article');
+        card.className = 'search-card';
+        const meta = document.createElement('div');
+        meta.className = 'search-meta';
+        meta.textContent = `#${index + 1} · score ${Number(item.score || 0).toFixed(4)} · ${item.document} · linhas ${item.lines || '-'}`;
+        const title = document.createElement('strong');
+        title.textContent = item.section;
+        const content = document.createElement('div');
+        content.className = 'search-content';
+        content.textContent = item.content;
+        card.append(meta, title, content);
+        messages.append(card);
+      });
+      messages.scrollTop = 0;
+    }
+
+    function showLoader() {
+      const wrapper = addMessage('assistant', '');
+      wrapper.querySelector('.bubble').innerHTML = '<span class="loader"><i></i><i></i><i></i></span>';
+      return wrapper;
+    }
+
+    async function submit(query) {
+      if (!query.trim() || state.busy) return;
+      state.busy = true;
+      send.disabled = true;
+      input.value = '';
+      resizeInput();
+
+      if (state.mode === 'chat') addMessage('user', query);
+      else messages.replaceChildren();
+      const loader = showLoader();
+
+      try {
+        const endpoint = state.mode === 'chat' ? '/api/v1/chat' : '/api/v1/search';
+        const body = state.mode === 'chat'
+          ? { message: query, session_id: state.sessionId, flow_id: 'procurement' }
+          : { query, flow_id: 'procurement', limit: 10 };
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || `Erro HTTP ${response.status}`);
+        loader.remove();
+
+        if (state.mode === 'chat') {
+          state.sessionId = data.session_id;
+          addMessage('assistant', data.answer, data.sources || []);
+        } else {
+          addSearchResults(data.results || []);
+        }
+      } catch (error) {
+        loader.remove();
+        addMessage('assistant', `Falha ao consultar a API: ${error.message}`, [], true);
+      } finally {
+        state.busy = false;
+        send.disabled = false;
+        input.focus();
+      }
+    }
+
+    async function clearView(clearSession = true) {
+      if (clearSession && state.sessionId) {
+        fetch(`/api/v1/sessions/${encodeURIComponent(state.sessionId)}`, { method: 'DELETE' }).catch(() => {});
+      }
+      state.sessionId = null;
+      messages.innerHTML = `
+        <div class="empty" id="empty">
+          <h2>${state.mode === 'chat' ? 'Como posso ajudar no SQMS?' : 'O que o RAG está encontrando?'}</h2>
+          <div>${state.mode === 'chat' ? 'Teste o chatbot usando perguntas reais dos colaboradores.' : 'A consulta mostra os trechos antes da geração da resposta.'}</div>
+          <div class="suggestions">
+            <button class="suggestion">Como crio uma cotação?</button>
+            <button class="suggestion">Como adiciono um aprovador?</button>
+            <button class="suggestion">Quais campos preciso preencher?</button>
+          </div>
+        </div>`;
+      bindSuggestions();
+    }
+
+    function bindSuggestions() {
+      document.querySelectorAll('.suggestion').forEach(button => button.addEventListener('click', () => submit(button.textContent)));
+    }
+
+    function resizeInput() {
+      input.style.height = 'auto';
+      input.style.height = `${Math.min(input.scrollHeight, 150)}px`;
+    }
+
+    async function checkHealth() {
+      const dot = document.querySelector('#statusDot');
+      const text = document.querySelector('#statusText');
+      try {
+        const response = await fetch('/api/v1/health');
+        if (!response.ok) throw new Error();
+        const health = await response.json();
+        dot.className = 'dot online';
+        text.textContent = 'API conectada';
+        document.querySelector('#healthDetails').textContent = `${health.sections} seções · ${health.model}`;
+      } catch {
+        dot.className = 'dot offline';
+        text.textContent = 'API indisponível';
+      }
+    }
+
+    document.querySelectorAll('.mode').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
+    document.querySelector('#clear').addEventListener('click', () => clearView());
+    document.querySelector('#form').addEventListener('submit', event => {
+      event.preventDefault();
+      submit(input.value);
+    });
+    input.addEventListener('input', resizeInput);
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        document.querySelector('#form').requestSubmit();
+      }
+    });
+
+    bindSuggestions();
+    checkHealth();
+  </script>
+</body>
+</html>

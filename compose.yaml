@@ -1,0 +1,26 @@
+services:
+  sqms-ai-orchestrator:
+    build: .
+    container_name: sqms-ai-orchestrator
+    restart: unless-stopped
+    ports:
+      - "8200:8200"
+    environment:
+      SQMS_AI_LLM_BASE_URL: ${SQMS_AI_LLM_BASE_URL:-http://10.64.10.48/v1}
+      SQMS_AI_LLM_API_KEY: ${SQMS_AI_LLM_API_KEY:-EMPTY}
+      SQMS_AI_LLM_MODEL: ${SQMS_AI_LLM_MODEL:-auto}
+      SQMS_AI_LLM_CONTEXT_TOKENS: ${SQMS_AI_LLM_CONTEXT_TOKENS:-4096}
+    volumes:
+      - ../procedures_rag:/procedures_rag:ro
+      - sqms_ai_data:/app/data
+    networks:
+      - assistant-network
+
+networks:
+  assistant-network:
+    ipam:
+      config:
+        - subnet: 172.29.250.0/24
+
+volumes:
+  sqms_ai_data:

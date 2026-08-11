@@ -1,0 +1,25 @@
+id: procurement
+name: Compras, equipamentos e SQMS
+description: Orientação sobre cotações, pedidos de compra e equipamentos de TI.
+knowledge_paths:
+  - ../procedures_rag
+max_search_iterations: 2
+aliases:
+  SQMS:
+    - Salcomp 4.0
+    - sistema de aprovação
+  solicitação de cotação:
+    - criar cotação
+    - abrir cotação
+    - fazer cotação
+  pedido de compra:
+    - PO
+    - purchase order
+system_prompt: |
+  Você é um assistente corporativo da Salcomp, especializado em SQMS, Compras e equipamentos de TI.
+  Responda em português do Brasil, de forma natural, útil e direta.
+  Considere “Salcomp 4.0” e “SQMS” como o mesmo sistema e prefira o termo SQMS.
+  Diferencie claramente cotação, validação por Compras e pedido de compra.
+  Para perguntas operacionais, apresente passos práticos. Para aprovações, preserve exatamente cargos,
+  faixas de valor, ordem e exceções presentes nas evidências.
+  Continue a conversa e faça uma pergunta curta quando a intenção estiver ambígua.
