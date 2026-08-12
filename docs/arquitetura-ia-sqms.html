@@ -1,0 +1,1950 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arquitetura da IA do SQMS</title>
+<style>
+  :root {
+    --bg: #FFFFFF;
+    --surface: #F7F7F5;
+    --surface-2: #EFEFEB;
+    --ink: #17181A;
+    --ink-soft: #5A6068;
+    --line: #DFDFD9;
+    --line-strong: #BEBEB6;
+
+    --c-front: #2F6FB0;      --c-front-soft: #EAF2FA;
+    --c-back: #157C6C;       --c-back-soft: #E3F3F0;
+    --c-orch: #7145A6;       --c-orch-soft: #F1EAFB;
+    --c-kb: #A06A1C;         --c-kb-soft: #FBF1DF;
+    --c-data: #2E7D32;       --c-data-soft: #E7F4E8;
+    --c-llm: #C0442F;        --c-llm-soft: #FBEAE6;
+
+    --ok: #1C7A45;           --ok-soft: #E6F4EB;
+    --off: #6B7280;          --off-soft: #EFEFEF;
+
+    --shadow: 0 1px 2px rgba(16,24,40,.05), 0 8px 24px rgba(16,24,40,.05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #131416;
+      --surface: #1A1C1F;
+      --surface-2: #212429;
+      --ink: #ECEDEF;
+      --ink-soft: #A2A8B0;
+      --line: rgba(236,237,239,.14);
+      --line-strong: rgba(236,237,239,.28);
+
+      --c-front: #7FB2E5;    --c-front-soft: rgba(127,178,229,.14);
+      --c-back: #55C7B3;     --c-back-soft: rgba(85,199,179,.14);
+      --c-orch: #B593E0;     --c-orch-soft: rgba(181,147,224,.14);
+      --c-kb: #E0AC5B;       --c-kb-soft: rgba(224,172,91,.14);
+      --c-data: #74C97A;     --c-data-soft: rgba(116,201,122,.14);
+      --c-llm: #EE8467;      --c-llm-soft: rgba(238,132,103,.14);
+
+      --ok: #63C98C;         --ok-soft: rgba(99,201,140,.14);
+      --off: #9AA1AB;        --off-soft: rgba(154,161,171,.12);
+
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.28);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #131416;
+    --surface: #1A1C1F;
+    --surface-2: #212429;
+    --ink: #ECEDEF;
+    --ink-soft: #A2A8B0;
+    --line: rgba(236,237,239,.14);
+    --line-strong: rgba(236,237,239,.28);
+
+    --c-front: #7FB2E5;    --c-front-soft: rgba(127,178,229,.14);
+    --c-back: #55C7B3;     --c-back-soft: rgba(85,199,179,.14);
+    --c-orch: #B593E0;     --c-orch-soft: rgba(181,147,224,.14);
+    --c-kb: #E0AC5B;       --c-kb-soft: rgba(224,172,91,.14);
+    --c-data: #74C97A;     --c-data-soft: rgba(116,201,122,.14);
+    --c-llm: #EE8467;      --c-llm-soft: rgba(238,132,103,.14);
+
+    --ok: #63C98C;         --ok-soft: rgba(99,201,140,.14);
+    --off: #9AA1AB;        --off-soft: rgba(154,161,171,.12);
+
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.28);
+  }
+
+  * { box-sizing: border-box; }
+  html { background: var(--bg); scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .display { font-family: Georgia, "Times New Roman", Times, serif; text-wrap: balance; letter-spacing: -.01em; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; }
+  code {
+    font-size: .88em;
+    padding: .1em .38em;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: var(--surface-2);
+    white-space: nowrap;
+  }
+  a { color: var(--c-front); }
+  :focus-visible { outline: 2px solid var(--c-front); outline-offset: 3px; }
+
+  .page { max-width: 1040px; margin: 0 auto; padding: 0 24px 96px; }
+
+  /* ---------- topo ---------- */
+  header.hero { padding: 64px 0 36px; border-bottom: 1px solid var(--line); }
+  .eyebrow {
+    display: inline-block;
+    margin: 0 0 14px;
+    padding: 4px 10px;
+    color: var(--ink-soft);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+  }
+  h1 { margin: 0 0 14px; font-size: clamp(30px, 5vw, 46px); line-height: 1.12; }
+  .lede { margin: 0; max-width: 68ch; color: var(--ink-soft); font-size: clamp(16px, 2.1vw, 19px); }
+
+  .oneliner {
+    margin: 28px 0 0;
+    padding: 20px 22px;
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--c-llm);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .oneliner p { margin: 0; font-size: clamp(16px, 2.2vw, 19px); line-height: 1.5; }
+  .oneliner .label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--ink-soft);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+
+  /* ---------- índice ---------- */
+  nav.toc { margin: 34px 0 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  nav.toc h2 { margin: 0 0 12px; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); }
+  nav.toc ol { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 4px 22px; margin: 0; padding: 0 0 0 20px; font-size: 14px; }
+  nav.toc a { text-decoration: none; color: var(--ink); }
+  nav.toc a:hover { color: var(--c-front); text-decoration: underline; }
+
+  /* ---------- seções ---------- */
+  section { padding-top: 52px; scroll-margin-top: 20px; }
+  h2 { margin: 0 0 6px; font-size: clamp(23px, 3.4vw, 31px); line-height: 1.2; }
+  h3 { margin: 26px 0 8px; font-size: 18px; line-height: 1.3; }
+  h4 { margin: 0 0 6px; font-size: 15px; }
+  .sub { margin: 0 0 22px; color: var(--ink-soft); max-width: 72ch; }
+  p { margin: 0 0 14px; }
+  ul { margin: 0 0 14px; padding-left: 20px; }
+  li { margin-bottom: 5px; }
+  li::marker { color: var(--ink-soft); }
+  hr.rule { height: 1px; margin: 0; border: 0; background: var(--line); }
+
+  /* ---------- badges ---------- */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px 3px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.5;
+    letter-spacing: .01em;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    background: var(--surface);
+    white-space: nowrap;
+  }
+  .badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--off); flex: 0 0 auto; }
+  .badge.on { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); background: var(--ok-soft); }
+  .badge.on::before { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
+  .badge.off { color: var(--off); border-color: var(--line-strong); background: var(--off-soft); }
+  .badge.off::before { background: transparent; border: 1.5px dashed var(--off); width: 8px; height: 8px; }
+  .badge.info { color: var(--ink-soft); }
+  .badge.info::before { background: var(--ink-soft); }
+  .badge.code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 500; }
+  .badge.code::before { display: none; }
+  .badge-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
+
+  /* ---------- cards ---------- */
+  .grid { display: grid; gap: 16px; }
+  .grid.two { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .grid.three { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+
+  .card {
+    position: relative;
+    padding: 18px 20px 18px 22px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--accent, var(--line-strong)); }
+  .card h4 { display: flex; align-items: center; gap: 8px; color: var(--accent, var(--ink)); font-size: 15px; }
+  .card p, .card ul { font-size: 14.5px; }
+  .card p:last-child, .card ul:last-child { margin-bottom: 0; }
+  .card.dashed { border-style: dashed; background: transparent; box-shadow: none; }
+  .card.dashed::before { opacity: .55; }
+
+  .c-front { --accent: var(--c-front); }
+  .c-back  { --accent: var(--c-back);  }
+  .c-orch  { --accent: var(--c-orch);  }
+  .c-kb    { --accent: var(--c-kb);    }
+  .c-data  { --accent: var(--c-data);  }
+  .c-llm   { --accent: var(--c-llm);   }
+
+  .kicker { display: block; margin-bottom: 2px; color: var(--ink-soft); font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+
+  /* ---------- figuras / svg ---------- */
+  figure { margin: 0 0 20px; }
+  .figure {
+    padding: 10px;
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    -webkit-overflow-scrolling: touch;
+  }
+  .figure svg { display: block; width: 100%; height: auto; }
+  #arch-svg { min-width: 940px; }
+  #rag-svg { min-width: 820px; }
+  #retrieval-svg { min-width: 860px; }
+  figcaption { margin-top: 10px; color: var(--ink-soft); font-size: 13px; }
+  .scroll-hint { display: none; margin: 8px 0 0; color: var(--ink-soft); font-size: 12.5px; }
+  @media (max-width: 860px) { .scroll-hint { display: block; } }
+
+  svg text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .n-title { font-size: 14px; font-weight: 700; }
+  .n-line { font-size: 11.5px; }
+  .n-tag { font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+  .e-label { font-size: 11px; font-weight: 600; }
+  .node { cursor: help; }
+  .node rect, .node path { transition: filter .18s ease, opacity .18s ease; }
+  .node:hover rect, .node:focus-visible rect { filter: brightness(1.03) saturate(1.15); }
+  .node:hover .halo { opacity: .5; }
+  .halo { opacity: 0; transition: opacity .18s ease; }
+
+  .flow { fill: none; stroke-width: 2; stroke-dasharray: 7 6; animation: dash 1.5s linear infinite; }
+  .flow.slow { animation-duration: 2.6s; }
+  .flow.solid { stroke-dasharray: none; animation: none; }
+  @keyframes dash { to { stroke-dashoffset: -26; } }
+  @media (prefers-reduced-motion: reduce) { .flow { animation: none !important; } html { scroll-behavior: auto; } }
+
+  /* ---------- legenda ---------- */
+  .legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 10px 18px; margin: 0 0 20px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  .legend-item { display: flex; align-items: flex-start; gap: 9px; font-size: 13.5px; line-height: 1.45; }
+  .swatch { flex: 0 0 auto; width: 15px; height: 15px; margin-top: 3px; border-radius: 4px; border: 1.5px solid var(--sw, var(--line-strong)); background: var(--sw-bg, transparent); }
+  .swatch.dashed { border-style: dashed; }
+  .swatch.line { height: 0; width: 22px; margin-top: 9px; border: 0; border-top: 2.5px dashed var(--sw, var(--ink-soft)); border-radius: 0; }
+  .swatch.line.solid { border-top-style: solid; }
+
+  /* ---------- tooltip ---------- */
+  .tip {
+    position: relative;
+    border-bottom: 1.5px dotted var(--c-front);
+    cursor: help;
+    font-weight: 600;
+  }
+  .tip::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 9px);
+    z-index: 20;
+    width: max-content;
+    max-width: min(300px, 76vw);
+    padding: 9px 12px;
+    color: var(--bg);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.45;
+    text-align: left;
+    white-space: normal;
+    border-radius: 8px;
+    background: var(--ink);
+    box-shadow: 0 8px 24px rgba(0,0,0,.22);
+    opacity: 0;
+    transform: translate(-50%, 4px);
+    pointer-events: none;
+    transition: opacity .15s ease, transform .15s ease;
+  }
+  .tip:hover::after, .tip:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+
+  /* ---------- passos ---------- */
+  .steps { counter-reset: step; margin: 0; padding: 0; list-style: none; }
+  .steps li {
+    position: relative;
+    margin: 0 0 2px;
+    padding: 12px 0 14px 50px;
+    border-bottom: 1px solid var(--line);
+  }
+  .steps li:last-child { border-bottom: 0; }
+  .steps li::before {
+    counter-increment: step;
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 12px;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    color: var(--accent, var(--c-orch));
+    font-size: 13px;
+    font-weight: 700;
+    border: 1px solid color-mix(in srgb, var(--accent, var(--c-orch)) 35%, transparent);
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--accent, var(--c-orch)) 10%, transparent);
+  }
+  .steps strong { display: block; }
+  .steps span { color: var(--ink-soft); font-size: 14.5px; }
+
+  /* ---------- tabela ---------- */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
+  table { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 14.5px; }
+  th, td { padding: 12px 16px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+  thead th { color: var(--ink-soft); font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; background: var(--surface-2); }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: color-mix(in srgb, var(--c-front) 5%, transparent); }
+  td.item { font-weight: 600; }
+
+  /* ---------- avisos ---------- */
+  .note {
+    display: flex;
+    gap: 12px;
+    margin: 18px 0;
+    padding: 15px 18px;
+    font-size: 14.5px;
+    border: 1px solid color-mix(in srgb, var(--accent, var(--c-kb)) 32%, var(--line));
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--accent, var(--c-kb)) 8%, transparent);
+  }
+  .note strong { color: var(--accent, var(--c-kb)); }
+  .note p { margin: 0; }
+  .note.ok { --accent: var(--ok); }
+  .note.stop { --accent: var(--c-llm); }
+
+  .anatomy { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--line); list-style: none; }
+  .anatomy li { margin: 0; padding: 13px 15px; background: var(--surface); }
+  .anatomy .k { display: block; color: var(--c-kb); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; font-weight: 700; }
+  .anatomy .v { color: var(--ink-soft); font-size: 12.5px; line-height: 1.4; }
+
+
+  .n-step { font-size: 11px; font-weight: 800; letter-spacing: .04em; }
+  .n-branch { font-size: 12.5px; font-weight: 700; }
+  .mono-t { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; }
+
+  /* ---------- expansores técnicos ---------- */
+  details.tech { margin: 20px 0 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+  details.tech + details.tech { margin-top: 10px; }
+  details.tech > summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 18px;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+  details.tech > summary::-webkit-details-marker { display: none; }
+  details.tech > summary:hover { background: var(--surface-2); }
+  details.tech > summary .chev {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    color: var(--c-front);
+    font-size: 11px;
+    border: 1px solid color-mix(in srgb, var(--c-front) 35%, transparent);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--c-front) 10%, transparent);
+    transition: transform .18s ease;
+  }
+  details.tech[open] > summary .chev { transform: rotate(90deg); }
+  details.tech > summary .hint { margin-left: auto; color: var(--ink-soft); font-size: 12.5px; font-weight: 400; text-align: right; }
+  @media (max-width: 620px) { details.tech > summary .hint { display: none; } }
+  .tech-body { padding: 4px 18px 18px; border-top: 1px solid var(--line); font-size: 14.5px; }
+  .tech-body > *:first-child { margin-top: 14px; }
+  .tech-body h5 { margin: 18px 0 6px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-soft); }
+  .tech-body h5:first-of-type { margin-top: 14px; }
+  .tech-body ul { margin-bottom: 10px; }
+  .tech-body p:last-child, .tech-body ul:last-child { margin-bottom: 0; }
+  .tech-body pre {
+    margin: 10px 0 14px;
+    padding: 13px 15px;
+    overflow-x: auto;
+    font-size: 12.5px;
+    line-height: 1.6;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--bg);
+  }
+  .tech-body pre code { padding: 0; border: 0; background: none; white-space: pre; font-size: inherit; }
+  .where { display: flex; gap: 10px; margin: 12px 0; padding: 12px 14px; border-left: 3px solid var(--accent, var(--ok)); border-radius: 0 8px 8px 0; background: color-mix(in srgb, var(--accent, var(--ok)) 8%, transparent); font-size: 14px; }
+  .where b { color: var(--accent, var(--ok)); }
+  .where.llm { --accent: var(--c-llm); }
+  .where.bm25 { --accent: var(--ok); }
+  .where p { margin: 0; }
+
+  .expand-all { display: flex; justify-content: flex-end; margin: 0 0 -6px; }
+  .expand-all button {
+    padding: 7px 14px;
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    background: var(--surface);
+  }
+  .expand-all button:hover { color: var(--c-front); border-color: var(--c-front); }
+
+  footer { margin-top: 72px; padding-top: 24px; border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 13.5px; }
+  footer .obs { padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="hero">
+  <span class="eyebrow">Documentação técnica · SQMS · Salcomp</span>
+  <h1 class="display">Como funciona a IA do SQMS</h1>
+  <p class="lede">
+    Um guia visual de ponta a ponta: da pergunta digitada no widget do assistente até a resposta
+    fundamentada em procedimentos corporativos e em dados reais do SQMS. Inclui o que é RAG, o que é
+    BM25, o que é reranking — e, principalmente, <strong>o que está de fato ligado hoje</strong>.
+  </p>
+
+  <div class="oneliner">
+    <span class="label">Resumo em uma frase</span>
+    <p>
+      A IA do SQMS combina um LLM com recuperação de documentos corporativos, usando BM25 como busca
+      lexical ativa, enquanto embeddings e reranking existem como recursos opcionais desabilitados por
+      padrão.
+    </p>
+  </div>
+
+  <nav class="toc" aria-label="Índice">
+    <h2>Nesta página</h2>
+    <ol>
+      <li><a href="#visao">Visão geral da arquitetura</a></li>
+      <li><a href="#camadas">As camadas, uma a uma</a></li>
+      <li><a href="#fluxos">Fluxo A e Fluxo B</a></li>
+      <li><a href="#rag">O que é RAG</a></li>
+      <li><a href="#base">Base de conhecimento</a></li>
+      <li><a href="#pipeline">Pipeline de recuperação</a></li>
+      <li><a href="#bm25">BM25</a></li>
+      <li><a href="#semantica">Busca semântica</a></li>
+      <li><a href="#rrf">RRF</a></li>
+      <li><a href="#rerank">Reranking</a></li>
+      <li><a href="#evidencias">Seleção de evidências</a></li>
+      <li><a href="#memoria">Memória de conversa</a></li>
+      <li><a href="#llm">Provedor LLM</a></li>
+      <li><a href="#resposta">A resposta final</a></li>
+      <li><a href="#estado">Estado atual da implementação</a></li>
+    </ol>
+  </nav>
+</header>
+
+<!-- ============================ VISÃO GERAL ============================ -->
+<div class="expand-all">
+    <button type="button" id="toggle-all" aria-pressed="false">Expandir todos os detalhes técnicos</button>
+  </div>
+
+<section id="visao">
+  <h2 class="display">Visão geral da arquitetura</h2>
+  <p class="sub">
+    Seis blocos, dois caminhos possíveis. O usuário nunca fala direto com o LLM: tudo passa pelo backend
+    do SQMS, que autentica, revalida permissões e decide qual fluxo atende a pergunta.
+  </p>
+
+  <div class="legend" role="list" aria-label="Legenda do diagrama">
+    <div class="legend-item" role="listitem">
+      <span class="swatch" style="--sw: var(--ok); --sw-bg: var(--ok-soft);"></span>
+      <span><strong>Componente ativo</strong> — em uso hoje, na configuração padrão.</span>
+    </div>
+    <div class="legend-item" role="listitem">
+      <span class="swatch dashed" style="--sw: var(--off);"></span>
+      <span><strong>Componente opcional</strong> — existe no código, desligado por padrão.</span>
+    </div>
+    <div class="legend-item" role="listitem">
+      <span class="swatch" style="--sw: var(--c-data); --sw-bg: var(--c-data-soft);"></span>
+      <span><strong>Dados reais do SQMS</strong> — solicitações, prazos e status do banco.</span>
+    </div>
+    <div class="legend-item" role="listitem">
+      <span class="swatch" style="--sw: var(--c-llm); --sw-bg: var(--c-llm-soft);"></span>
+      <span><strong>Chamada ao LLM</strong> — geração de texto pelo modelo.</span>
+    </div>
+    <div class="legend-item" role="listitem">
+      <span class="swatch line" style="--sw: var(--c-front);"></span>
+      <span><strong>Fluxo de ida</strong> — a pergunta descendo pelas camadas.</span>
+    </div>
+    <div class="legend-item" role="listitem">
+      <span class="swatch line solid" style="--sw: var(--ink-soft);"></span>
+      <span><strong>Fluxo de resposta</strong> — o retorno até a tela do usuário.</span>
+    </div>
+    <div class="legend-item" role="listitem">
+      <span class="swatch line" style="--sw: var(--c-orch);"></span>
+      <span><strong>Ponte entre os fluxos</strong> — o agente também consulta os procedimentos.</span>
+    </div>
+  </div>
+
+  <figure>
+    <div class="figure">
+      <svg id="arch-svg" viewBox="0 0 1360 880" role="img" aria-labelledby="arch-title arch-desc">
+        <title id="arch-title">Diagrama da arquitetura da IA do SQMS</title>
+        <desc id="arch-desc">
+          O usuário usa o widget no frontend, que envia pergunta e contexto de tela ao backend do SQMS.
+          O backend autentica, revalida permissões e roteia: sem contexto de tela vai para o Fluxo A
+          (orquestrador RAG sobre a base de procedimentos); com contexto de tela e agente habilitado vai
+          para o Fluxo B (agente sobre dados reais do SQMS). Ambos chamam o mesmo provedor LLM e a
+          resposta volta pelo backend até o usuário.
+        </desc>
+
+        <defs>
+          <marker id="ah-front" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--c-front)"></path>
+          </marker>
+          <marker id="ah-back" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--c-back)"></path>
+          </marker>
+          <marker id="ah-orch" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--c-orch)"></path>
+          </marker>
+          <marker id="ah-kb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--c-kb)"></path>
+          </marker>
+          <marker id="ah-data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--c-data)"></path>
+          </marker>
+          <marker id="ah-llm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--c-llm)"></path>
+          </marker>
+          <marker id="ah-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--ink-soft)"></path>
+          </marker>
+        </defs>
+
+        <!-- ============ 1. USUÁRIO ============ -->
+        <g class="node" tabindex="0">
+          <title>A pessoa que usa o SQMS: abre o widget do assistente e faz a pergunta em português.</title>
+          <rect class="halo" x="14" y="394" width="137" height="92" rx="14" fill="var(--c-front)"></rect>
+          <rect x="20" y="400" width="125" height="80" rx="12" fill="var(--c-front-soft)" stroke="var(--c-front)" stroke-width="1.5"></rect>
+          <text class="n-step" x="34" y="422" fill="var(--c-front)">1</text>
+          <text class="n-title" x="82" y="446" text-anchor="middle" fill="var(--c-front)">Usuário</text>
+          <text class="n-line" x="82" y="466" text-anchor="middle" fill="var(--ink-soft)">faz a pergunta</text>
+        </g>
+
+        <!-- ============ 2. FRONTEND ============ -->
+        <g class="node" tabindex="0">
+          <title>Frontend SQMS (React): widget "Assistente SQMS". Envia a pergunta, o identificador público da sessão e, quando a tela é reconhecida, o descritor do contexto de tela.</title>
+          <rect class="halo" x="169" y="354" width="207" height="177" rx="16" fill="var(--c-front)"></rect>
+          <rect x="175" y="360" width="195" height="165" rx="14" fill="var(--c-front-soft)" stroke="var(--c-front)" stroke-width="1.5"></rect>
+          <text class="n-step" x="190" y="384" fill="var(--c-front)">2</text>
+          <text class="n-tag" x="206" y="384" fill="var(--c-front)">Frontend</text>
+          <text class="n-title" x="190" y="408" fill="var(--ink)">Widget Assistente</text>
+          <text class="n-line" x="190" y="432" fill="var(--ink-soft)">• a pergunta digitada</text>
+          <text class="n-line" x="190" y="452" fill="var(--ink-soft)">• sessão pública (uuid)</text>
+          <text class="n-line" x="190" y="472" fill="var(--ink-soft)">• contexto da tela, se houver:</text>
+          <text class="n-line" x="200" y="490" fill="var(--ink-soft)">lista · detalhe · dashboard</text>
+          <text class="n-line" x="190" y="512" fill="var(--c-front)" font-weight="700">não fala com o LLM</text>
+        </g>
+
+        <!-- ============ 3. BACKEND ============ -->
+        <g class="node" tabindex="0">
+          <title>Backend SQMS (Sanic): autentica, converte a sessão pública em sessão interna vinculada ao usuário, revalida permissões e reconstrói o contexto da tela pelos controllers reais.</title>
+          <rect class="halo" x="394" y="309" width="227" height="262" rx="16" fill="var(--c-back)"></rect>
+          <rect x="400" y="315" width="215" height="250" rx="14" fill="var(--c-back-soft)" stroke="var(--c-back)" stroke-width="1.5"></rect>
+          <text class="n-step" x="415" y="339" fill="var(--c-back)">3</text>
+          <text class="n-tag" x="431" y="339" fill="var(--c-back)">Backend SQMS</text>
+          <text class="n-title" x="415" y="363" fill="var(--ink)">Porta de entrada</text>
+          <text class="n-line" x="415" y="387" fill="var(--ink-soft)">• autentica o usuário</text>
+          <text class="n-line" x="415" y="407" fill="var(--ink-soft)">• sessão pública vira</text>
+          <text class="n-line" x="425" y="424" fill="var(--ink-soft)">sessão interna (SHA-256)</text>
+          <text class="n-line" x="415" y="446" fill="var(--ink-soft)">• revalida permissões</text>
+          <text class="n-line" x="415" y="466" fill="var(--ink-soft)">• reconstrói o contexto</text>
+          <text class="n-line" x="425" y="483" fill="var(--ink-soft)">pelos controllers reais</text>
+          <text class="n-line" x="415" y="505" fill="var(--ink-soft)">• expõe só ferramentas</text>
+          <text class="n-line" x="425" y="522" fill="var(--ink-soft)">de leitura</text>
+          <text class="n-line" x="415" y="546" fill="var(--ok)" font-weight="700">✓ somente leitura</text>
+        </g>
+
+        <!-- ============ 4. ROTEAMENTO ============ -->
+        <g class="node" tabindex="0">
+          <title>Roteamento: o backend decide qual fluxo responde. A regra é objetiva — havendo contexto de tela e com o agente habilitado, vai para o Fluxo B; caso contrário, vai para o Fluxo A.</title>
+          <rect class="halo" x="639" y="344" width="197" height="222" rx="16" fill="var(--ink-soft)"></rect>
+          <rect x="645" y="350" width="185" height="210" rx="14" fill="var(--surface-2)" stroke="var(--line-strong)" stroke-width="1.5"></rect>
+          <text class="n-step" x="660" y="374" fill="var(--ink-soft)">4</text>
+          <text class="n-tag" x="676" y="374" fill="var(--ink-soft)">Roteamento</text>
+          <text class="n-title" x="660" y="398" fill="var(--ink)">Qual fluxo responde?</text>
+          <path d="M 660 412 L 815 412" stroke="var(--line-strong)" stroke-width="1"></path>
+
+          <text class="n-branch" x="660" y="436" fill="var(--c-orch)">SEM contexto de tela</text>
+          <text class="n-line" x="660" y="453" fill="var(--ink-soft)">(ou agente desligado)</text>
+          <text class="n-branch" x="660" y="472" fill="var(--c-orch)">→ Fluxo A</text>
+
+          <path d="M 660 488 L 815 488" stroke="var(--line-strong)" stroke-width="1" stroke-dasharray="3 4"></path>
+
+          <text class="n-branch" x="660" y="512" fill="var(--c-data)">COM contexto de tela</text>
+          <text class="n-line" x="660" y="529" fill="var(--ink-soft)">e agente habilitado</text>
+          <text class="n-branch" x="660" y="548" fill="var(--c-data)">→ Fluxo B</text>
+        </g>
+
+        <!-- ============ 5A. FLUXO A ============ -->
+        <g class="node" tabindex="0">
+          <title>Fluxo A — Orquestrador de IA (FastAPI): responde perguntas sobre procedimentos, regras, cotações, aprovações e equipamentos, buscando evidências na base Markdown e devolvendo a resposta com as fontes.</title>
+          <rect class="halo" x="854" y="84" width="267" height="202" rx="16" fill="var(--c-orch)"></rect>
+          <rect x="860" y="90" width="255" height="190" rx="14" fill="var(--c-orch-soft)" stroke="var(--c-orch)" stroke-width="2"></rect>
+          <text class="n-step" x="875" y="114" fill="var(--c-orch)">5A</text>
+          <text class="n-tag" x="900" y="114" fill="var(--c-orch)">Orquestrador</text>
+          <text class="n-title" x="875" y="138" fill="var(--ink)">Fluxo A · RAG</text>
+          <text class="n-line" x="875" y="162" fill="var(--ink-soft)">regras, cotação, pedido de</text>
+          <text class="n-line" x="875" y="180" fill="var(--ink-soft)">compra, aprovações, TI</text>
+          <text class="n-line" x="875" y="204" fill="var(--c-orch)" font-weight="700">planeja → BM25 → seleciona</text>
+          <text class="n-line" x="875" y="222" fill="var(--ink-soft)">evidências → responde</text>
+          <text class="n-line" x="875" y="248" fill="var(--ok)" font-weight="700">↳ é aqui que o BM25 roda</text>
+          <text class="n-line" x="875" y="268" fill="var(--ink-soft)">retorna resposta + fontes</text>
+        </g>
+
+        <!-- ============ 6. LLM ============ -->
+        <g class="node" tabindex="0">
+          <title>Provedor LLM: gateway interno compatível com OpenAI (Lity), endpoint /chat/completions, modelo configurável por ambiente e temperatura baixa. Os dois fluxos chamam o mesmo modelo.</title>
+          <rect class="halo" x="854" y="354" width="267" height="162" rx="16" fill="var(--c-llm)"></rect>
+          <rect x="860" y="360" width="255" height="150" rx="14" fill="var(--c-llm-soft)" stroke="var(--c-llm)" stroke-width="2"></rect>
+          <text class="n-step" x="875" y="384" fill="var(--c-llm)">6</text>
+          <text class="n-tag" x="895" y="384" fill="var(--c-llm)">Provedor LLM</text>
+          <text class="n-title" x="875" y="408" fill="var(--ink)">Gateway interno (Lity)</text>
+          <text class="n-line" x="875" y="432" fill="var(--ink-soft)">API compatível com OpenAI</text>
+          <text class="n-line" x="875" y="450" fill="var(--ink-soft)">POST /chat/completions</text>
+          <text class="n-line" x="875" y="468" fill="var(--ink-soft)">modelo por ambiente · temp. baixa</text>
+          <text class="n-line" x="875" y="494" fill="var(--c-llm)" font-weight="700">os dois fluxos usam o mesmo</text>
+        </g>
+
+        <!-- ============ 5B. FLUXO B ============ -->
+        <g class="node" tabindex="0">
+          <title>Fluxo B — Agente consciente da tela: ativado quando o contexto da tela existe e o agente está habilitado. Enxerga um snapshot do que o usuário está vendo e pode chamar ferramentas somente leitura.</title>
+          <rect class="halo" x="854" y="584" width="267" height="222" rx="16" fill="var(--c-data)"></rect>
+          <rect x="860" y="590" width="255" height="210" rx="14" fill="var(--c-data-soft)" stroke="var(--c-data)" stroke-width="2"></rect>
+          <text class="n-step" x="875" y="614" fill="var(--c-data)">5B</text>
+          <text class="n-tag" x="900" y="614" fill="var(--c-data)">Agente</text>
+          <text class="n-title" x="875" y="638" fill="var(--ink)">Fluxo B · Tela</text>
+          <text class="n-line" x="875" y="662" fill="var(--ink-soft)">recebe o snapshot da tela e</text>
+          <text class="n-line" x="875" y="680" fill="var(--ink-soft)">decide se chama ferramentas:</text>
+          <text class="n-line mono-t" x="885" y="702" fill="var(--c-data)">get_request_detail</text>
+          <text class="n-line mono-t" x="885" y="720" fill="var(--c-data)">search_requests</text>
+          <text class="n-line mono-t" x="885" y="738" fill="var(--c-orch)">search_procedures ↗</text>
+          <text class="n-line" x="875" y="764" fill="var(--ok)" font-weight="700">✓ nunca aprova nem altera</text>
+          <text class="n-line" x="875" y="784" fill="var(--ink-soft)">retorna a resposta ao backend</text>
+        </g>
+
+        <!-- ============ 7A. BASE ============ -->
+        <g class="node" tabindex="0">
+          <title>Base de procedimentos: arquivos Markdown em procedures_rag, divididos em seções por títulos e indexados pelo BM25.</title>
+          <rect class="halo" x="1144" y="104" width="202" height="162" rx="16" fill="var(--c-kb)"></rect>
+          <rect x="1150" y="110" width="190" height="150" rx="14" fill="var(--c-kb-soft)" stroke="var(--c-kb)" stroke-width="1.5"></rect>
+          <text class="n-step" x="1164" y="134" fill="var(--c-kb)">7A</text>
+          <text class="n-tag" x="1190" y="134" fill="var(--c-kb)">Conhecimento</text>
+          <text class="n-title" x="1164" y="158" fill="var(--ink)">procedures_rag</text>
+          <text class="n-line" x="1164" y="182" fill="var(--ink-soft)">RAG_SQMS_CAMPOS</text>
+          <text class="n-line" x="1164" y="200" fill="var(--ink-soft)">RAG_COTAÇÃO_COMPRAS</text>
+          <text class="n-line" x="1164" y="218" fill="var(--ink-soft)">RAG_BASELINE_NOTEBOOK…</text>
+          <text class="n-line" x="1164" y="244" fill="var(--c-kb)" font-weight="700">Markdown → seções</text>
+        </g>
+
+        <!-- ============ 7B. DADOS ============ -->
+        <g class="node" tabindex="0">
+          <title>Dados reais do SQMS: solicitações, status, prazos e responsáveis, sempre lidos pelos controllers com a permissão do usuário autenticado.</title>
+          <rect class="halo" x="1144" y="604" width="202" height="162" rx="16" fill="var(--c-data)"></rect>
+          <rect x="1150" y="610" width="190" height="150" rx="14" fill="var(--c-data-soft)" stroke="var(--c-data)" stroke-width="1.5"></rect>
+          <text class="n-step" x="1164" y="634" fill="var(--c-data)">7B</text>
+          <text class="n-tag" x="1190" y="634" fill="var(--c-data)">Dados reais</text>
+          <text class="n-title" x="1164" y="658" fill="var(--ink)">Solicitações SQMS</text>
+          <text class="n-line" x="1164" y="682" fill="var(--ink-soft)">status, prazos, aprovadores</text>
+          <text class="n-line" x="1164" y="700" fill="var(--ink-soft)">itens e observações</text>
+          <text class="n-line" x="1164" y="726" fill="var(--c-data)" font-weight="700">escopo do usuário</text>
+          <text class="n-line" x="1164" y="746" fill="var(--ink-soft)">lidos pelos controllers</text>
+        </g>
+
+        <!-- ============ CONEXÕES DE IDA ============ -->
+        <path class="flow" d="M 147 440 L 169 440" stroke="var(--c-front)" marker-end="url(#ah-front)"></path>
+        <path class="flow" d="M 372 440 L 394 440" stroke="var(--c-front)" marker-end="url(#ah-front)"></path>
+        <path class="flow" d="M 617 440 L 639 440" stroke="var(--c-back)" marker-end="url(#ah-back)"></path>
+
+        <!-- roteamento -> fluxo A (sai da linha "Fluxo A") -->
+        <path class="flow" d="M 832 460 C 848 460, 846 190, 856 190" stroke="var(--c-orch)" stroke-width="2.5" marker-end="url(#ah-orch)"></path>
+        <!-- roteamento -> fluxo B (sai da linha "Fluxo B") -->
+        <path class="flow" d="M 832 540 C 848 540, 846 690, 856 690" stroke="var(--c-data)" stroke-width="2.5" marker-end="url(#ah-data)"></path>
+
+        <!-- fluxos -> fontes -->
+        <path class="flow" d="M 1117 185 L 1144 185" stroke="var(--c-kb)" marker-end="url(#ah-kb)"></path>
+        <path class="flow" d="M 1117 685 L 1144 685" stroke="var(--c-data)" marker-end="url(#ah-data)"></path>
+
+        <!-- fluxos <-> LLM -->
+        <path class="flow slow" d="M 987 282 L 987 356" stroke="var(--c-llm)" stroke-width="2.5" marker-end="url(#ah-llm)" marker-start="url(#ah-llm)"></path>
+        <path class="flow slow" d="M 987 588 L 987 514" stroke="var(--c-llm)" stroke-width="2.5" marker-end="url(#ah-llm)" marker-start="url(#ah-llm)"></path>
+
+        <!-- ponte: search_procedures leva o Fluxo B à base de procedimentos -->
+        <path d="M 1115 600 C 1136 600, 1136 300, 1150 246" fill="none" stroke="var(--c-orch)" stroke-width="2" stroke-dasharray="5 6" opacity=".8" marker-end="url(#ah-orch)"></path>
+        <text class="e-label" x="1150" y="92" fill="var(--c-orch)">ponte: search_procedures</text>
+
+        <!-- ============ RETORNO ============ -->
+        <path class="flow solid" d="M 507 567 L 507 838 L 82 838 L 82 484" stroke="var(--ink-soft)" stroke-width="2.5" marker-end="url(#ah-soft)"></path>
+        <text class="e-label" x="295" y="828" text-anchor="middle" fill="var(--ink-soft)">resposta em português + fontes + session_id + modelo</text>
+
+        <!-- rótulos das chamadas ao LLM -->
+        <text class="e-label" x="1000" y="322" fill="var(--c-llm)">chamada ao LLM</text>
+        <text class="e-label" x="1000" y="556" fill="var(--c-llm)">chamada ao LLM</text>
+      </svg>
+    </div>
+    <p class="scroll-hint">↔ Arraste o diagrama para o lado para ver tudo.</p>
+    <figcaption>
+      Passe o mouse (ou dê foco pelo teclado) em qualquer bloco do diagrama para ver a explicação detalhada.
+    </figcaption>
+  </figure>
+
+  <details class="tech">
+    <summary><span class="chev">▸</span> Ver o caminho técnico de uma pergunta<span class="hint">endpoints, sessão e roteamento</span></summary>
+    <div class="tech-body">
+      <h5>A requisição</h5>
+      <pre><code>POST /app/ai-assistant/chat
+{ "message": "...", "session_id": "uuid", "flow_id": "procurement",
+  "page_context": { "screen": "approval.list", "filters": {...}, "page": 1, "size": 10 } }</code></pre>
+      <ul>
+        <li><code>GET /app/ai-assistant/status</code> diz se o assistente está disponível (é o que decide se o botão flutuante aparece).</li>
+        <li><code>DELETE /app/ai-assistant/sessions/{id}</code> limpa a conversa.</li>
+        <li>A sessão pública vira interna com <code>sha256(f'{user_id}:{session_id}')</code> — o identificador que o navegador conhece nunca é a chave real.</li>
+      </ul>
+
+      <h5>A decisão de rota, no código</h5>
+      <pre><code>if body.page_context is not None and ai_assistant_agent_enabled():
+    → AssistantAgent  (Fluxo B, dentro do sqms-back)
+else:
+    → AiAssistantClient.chat()  →  POST /api/v1/chat  (Fluxo A, orquestrador)</code></pre>
+      <p>
+        <code>ai_assistant_agent_enabled()</code> lê a variável <code>AI_ASSISTANT_AGENT_ENABLED</code>
+        (<code>1</code> no <code>.env</code>, <code>0</code> no <code>.env.dev</code>). O orquestrador roda
+        em FastAPI na porta <code>8200</code>, apontado por <code>AI_ORCHESTRATOR_URL</code>.
+      </p>
+
+      <div class="where llm">
+        <p><b>Onde entra o LLM:</b> nunca no navegador. A primeira chamada ao modelo acontece já dentro do backend (Fluxo B) ou dentro do orquestrador (Fluxo A) — depois da autenticação e da revalidação de permissão.</p>
+      </div>
+      <div class="where bm25">
+        <p><b>Onde entra o BM25:</b> só dentro do orquestrador. No Fluxo A ele roda sempre; no Fluxo B ele só roda se o modelo decidir chamar a ferramenta <code>search_procedures</code>.</p>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- ============================ CAMADAS ============================ -->
+<section id="camadas">
+  <h2 class="display">As camadas, uma a uma</h2>
+  <p class="sub">
+    Cada camada tem uma responsabilidade única e não confia na camada anterior mais do que precisa.
+    Esse é o princípio que sustenta a segurança do assistente.
+  </p>
+
+  <div class="grid two">
+    <div class="card c-front">
+      <span class="kicker">1 · Usuário</span>
+      <h4>Quem pergunta</h4>
+      <p>
+        Interage com o widget <strong>“Assistente SQMS”</strong> dentro do próprio sistema. Escreve em
+        português, sem precisar saber nada de tela, de filtro ou de procedimento.
+      </p>
+    </div>
+
+    <div class="card c-front">
+      <span class="kicker">2 · Frontend SQMS</span>
+      <h4>Envia pergunta e contexto</h4>
+      <ul>
+        <li>Envia a pergunta digitada.</li>
+        <li>
+          Pode enviar o <span class="tip" data-tip="Um descritor leve: qual tela, quais filtros e qual página — nunca as linhas já renderizadas.">contexto da tela atual</span>:
+          lista de solicitações, detalhe de uma solicitação ou dashboard.
+        </li>
+        <li>Mantém o <strong>identificador público da sessão</strong>, para a conversa ter continuidade.</li>
+      </ul>
+    </div>
+
+    <div class="card c-back">
+      <span class="kicker">3 · Backend SQMS</span>
+      <h4>Autentica, revalida e reconstrói</h4>
+      <ul>
+        <li>Autentica o usuário da requisição.</li>
+        <li>Converte o identificador público em uma <strong>sessão interna vinculada ao usuário</strong>, para conversas não vazarem entre pessoas.</li>
+        <li><strong>Revalida permissões</strong> a cada pergunta.</li>
+        <li>
+          <strong>Reconstrói o contexto da tela</strong> usando os <em>controllers reais do SQMS</em> —
+          os mesmos que a tela usa.
+        </li>
+        <li>Encaminha a pergunta ao assistente/orquestrador.</li>
+        <li>Expõe apenas <strong>ferramentas somente leitura</strong>.</li>
+      </ul>
+    </div>
+
+    <div class="card c-llm">
+      <span class="kicker">4 · Provedor LLM</span>
+      <h4>Quem escreve a resposta</h4>
+      <p>
+        O modelo de linguagem gera o texto final. Ele nunca recebe credenciais do usuário nem acesso ao
+        banco: recebe apenas o material que as camadas anteriores já filtraram e autorizaram.
+      </p>
+    </div>
+  </div>
+
+  <div class="note ok">
+    <p>
+      <strong>Por que reconstruir o contexto no servidor?</strong> Porque o que o navegador envia é
+      apenas um descritor (“tela de lista, filtro X, página 2”). O backend refaz a consulta com a
+      permissão real do usuário. Um <code>uid</code> forjado no cliente não vira acesso: o mesmo
+      controller que protege a tela recusa o documento.
+    </p>
+  </div>
+
+  <details class="tech">
+    <summary><span class="chev">▸</span> Ver os arquivos de cada camada<span class="hint">onde cada responsabilidade mora</span></summary>
+    <div class="tech-body">
+      <h5>Frontend (sqms-front)</h5>
+      <ul>
+        <li><code>src/components/AssistantWidget/index.tsx</code> — o widget, as sugestões e o envio.</li>
+        <li><code>src/hooks/usePageContext.tsx</code> — cada tela se registra com <code>useRegisterPageContext</code>.</li>
+        <li><code>src/hooks/useAssistant.tsx</code> — anexa o <code>page_context</code> a cada mensagem.</li>
+        <li><code>src/services/assistant/AssistantService.ts</code> — as três chamadas HTTP.</li>
+      </ul>
+
+      <h5>Backend (sqms-back)</h5>
+      <ul>
+        <li><code>routes/app/ai_assistant/ai_assistant.py</code> — autenticação, sessão e roteamento.</li>
+        <li><code>use_cases/ai_assistant/page_snapshot.py</code> — reconstrói a tela.</li>
+        <li><code>use_cases/ai_assistant/tools.py</code> — as três ferramentas de leitura.</li>
+        <li><code>use_cases/ai_assistant/assistant_agent.py</code> — o laço de tool calling.</li>
+        <li><code>use_cases/ai_assistant/prompts.py</code> — as instruções e os limites de escopo.</li>
+      </ul>
+
+      <h5>Orquestrador (sqms_ai_orchestrator)</h5>
+      <ul>
+        <li><code>orchestrator.py</code> — planejar, selecionar evidências, responder.</li>
+        <li><code>knowledge/base.py</code> — indexação e o pipeline de busca.</li>
+        <li><code>knowledge/retrieval.py</code> — BM25, embeddings, RRF e reranker.</li>
+        <li><code>provider.py</code> — o cliente do gateway LLM.</li>
+        <li><code>memory.py</code> — a memória em SQLite.</li>
+      </ul>
+
+      <h5>Como o snapshot da tela é montado</h5>
+      <p>
+        <code>build_page_snapshot()</code> chama os mesmos controllers da tela —
+        <code>DocumentFlowController.get_all_documents</code>, <code>get_document_by_id</code> e
+        <code>DashboardDocumentsController</code> — e depois:
+      </p>
+      <ul>
+        <li>remove qualquer chave que contenha <code>url</code>, <code>path</code>, <code>mime_type</code>, <code>base64</code> ou <code>signature</code>;</li>
+        <li>calcula <code>days_to_deadline</code> e <code>overdue</code> <strong>em Python</strong> — a conta de prazo nunca é deixada para o modelo;</li>
+        <li>ordena por urgência e corta o snapshot em <strong>6.000 caracteres</strong>, marcando <code>truncated: true</code> quando precisa cortar.</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<!-- ============================ FLUXOS ============================ -->
+<section id="fluxos">
+  <h2 class="display">Dois fluxos possíveis</h2>
+  <p class="sub">
+    O backend escolhe o caminho conforme a pergunta e o contexto disponível. São dois modos de responder,
+    com fontes de verdade diferentes.
+  </p>
+
+  <div class="grid two">
+    <div class="card c-orch">
+      <span class="kicker">Fluxo A</span>
+      <h4>RAG / Orquestrador</h4>
+      <p class="mono" style="font-size:12.5px; color:var(--ink-soft); margin-bottom:12px;">
+        “Qual é a regra para aprovar uma compra de R$ 6.000?”
+      </p>
+      <ul>
+        <li>Usado para perguntas sobre <strong>procedimentos, regras, cotações, aprovações e equipamentos</strong>.</li>
+        <li>Consulta a <strong>base de documentos Markdown</strong>.</li>
+        <li>Retorna a <strong>resposta com as fontes</strong> consultadas.</li>
+      </ul>
+    </div>
+
+    <div class="card c-data">
+      <span class="kicker">Fluxo B</span>
+      <h4>Agente consciente da tela</h4>
+      <p class="mono" style="font-size:12.5px; color:var(--ink-soft); margin-bottom:12px;">
+        “Dessas solicitações, qual é a mais urgente?”
+      </p>
+      <ul>
+        <li>Usado quando o <strong>contexto da tela está disponível</strong> e o agente está habilitado.</li>
+        <li>Consulta <strong>dados reais do SQMS</strong>.</li>
+        <li>
+          Pode usar as ferramentas
+          <code>get_request_detail</code>, <code>search_requests</code> e <code>search_procedures</code>.
+        </li>
+        <li>É <strong>somente leitura</strong>.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note stop">
+    <p>
+      <strong>Limite absoluto:</strong> o assistente <strong>nunca aprova, rejeita, cria ou altera</strong>
+      uma solicitação. Ele lê, explica e orienta. Qualquer ação continua sendo feita pela pessoa, pela
+      tela do SQMS.
+    </p>
+  </div>
+
+  <h3>As três ferramentas do Fluxo B</h3>
+  <div class="grid three">
+    <div class="card c-data dashed">
+      <h4><code>get_request_detail</code></h4>
+      <p>Busca os detalhes completos de <strong>uma</strong> solicitação pelo seu <code>uid</code>: assunto, tipo, status, itens e prazo.</p>
+    </div>
+    <div class="card c-data dashed">
+      <h4><code>search_requests</code></h4>
+      <p>Busca solicitações <strong>visíveis para o usuário atual</strong> por assunto, status ou tipo, quando a pergunta escapa da tela.</p>
+    </div>
+    <div class="card c-kb dashed">
+      <h4><code>search_procedures</code></h4>
+      <p>Consulta a base de procedimentos — é a ponte do agente com o Fluxo A, para perguntas de “qual é a regra”.</p>
+    </div>
+  </div>
+
+  <details class="tech">
+    <summary><span class="chev">▸</span> Ver a regra de roteamento e o laço de ferramentas<span class="hint">quantas vezes o LLM é chamado</span></summary>
+    <div class="tech-body">
+      <h5>A regra, sem ambiguidade</h5>
+      <p>
+        Não é o assunto da pergunta que escolhe o fluxo — é <strong>o que o frontend enviou</strong>.
+        Se veio contexto de tela e o agente está ligado, quem responde é o Fluxo B; caso contrário, o Fluxo A.
+        Por isso a mesma pergunta pode ser atendida por caminhos diferentes conforme a tela em que a pessoa está.
+      </p>
+      <ul>
+        <li>Telas que registram contexto hoje: <strong>lista de aprovações</strong>, <strong>detalhe de uma solicitação</strong> e <strong>dashboard</strong>.</li>
+        <li>Em qualquer outra tela, não há contexto — e a pergunta segue pelo Fluxo A.</li>
+      </ul>
+
+      <h5>O laço de tool calling do Fluxo B</h5>
+      <pre><code>MAX_TOOL_ROUNDS   = 3     # no máximo 3 chamadas ao LLM por pergunta
+MAX_HISTORY_MESSAGES = 8  # histórico enviado ao modelo
+MAX_OUTPUT_TOKENS = 1200  # teto da resposta</code></pre>
+      <ul>
+        <li>Rodada 1 e 2: o modelo recebe as ferramentas e pode pedir dados.</li>
+        <li>Rodada 3: as ferramentas são enviadas <strong>vazias</strong> de propósito, forçando uma resposta definitiva — o laço nunca fica preso.</li>
+        <li>Cada retorno de ferramenta volta ao modelo como mensagem <code>role: "tool"</code>, no formato OpenAI.</li>
+      </ul>
+
+      <h5>Por que as ferramentas são seguras</h5>
+      <p>
+        O <code>ToolContext</code> carrega <code>user_id</code> e <code>business_id</code> vindos do
+        <em>request autenticado</em>, nunca dos argumentos que o modelo inventa. Se o modelo pedir um
+        <code>uid</code> que a pessoa não pode ver, é o próprio controller do SQMS que recusa
+        (<code>SQMSForbiddenException</code>) e a ferramenta devolve <code>{"error": ...}</code> — sem vazar nada.
+      </p>
+
+      <div class="where llm">
+        <p><b>Onde entra o LLM:</b> de 1 a 3 chamadas por pergunta no Fluxo B, todas com o catálogo de ferramentas anexado.</p>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- ============================ RAG ============================ -->
+<section id="rag">
+  <h2 class="display">O que é RAG</h2>
+  <p class="sub">
+    <strong>RAG</strong> é a sigla de <strong>Retrieval-Augmented Generation</strong>, em português
+    <strong>“Geração Aumentada por Recuperação”</strong>. A ideia é simples: em vez de confiar na memória
+    do modelo, primeiro <em>recuperamos</em> os trechos certos dos documentos da empresa e só então
+    pedimos ao modelo que <em>gere</em> a resposta usando aqueles trechos como base.
+  </p>
+
+  <figure>
+    <div class="figure">
+      <svg id="rag-svg" viewBox="0 0 1120 260" role="img" aria-labelledby="rag-title">
+        <title id="rag-title">As cinco etapas do RAG: analisar a pergunta, criar consultas, recuperar documentos, enviar evidências ao LLM e gerar a resposta fundamentada</title>
+        <defs>
+          <marker id="ah-step" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--c-orch)"></path>
+          </marker>
+        </defs>
+
+        <g class="node" tabindex="0">
+          <title>A pergunta em linguagem natural é interpretada junto com o histórico recente da conversa.</title>
+          <rect x="10" y="60" width="184" height="120" rx="12" fill="var(--c-orch-soft)" stroke="var(--c-orch)" stroke-width="1.5"></rect>
+          <circle cx="34" cy="86" r="12" fill="var(--c-orch)"></circle>
+          <text x="34" y="90" text-anchor="middle" font-size="12" font-weight="700" fill="var(--bg)">1</text>
+          <text class="n-title" x="56" y="90" fill="var(--ink)">Pergunta</text>
+          <text class="n-line" x="26" y="118" fill="var(--ink-soft)">A pergunta do usuário</text>
+          <text class="n-line" x="26" y="136" fill="var(--ink-soft)">é analisada, junto com</text>
+          <text class="n-line" x="26" y="154" fill="var(--ink-soft)">o histórico da conversa.</text>
+        </g>
+
+        <g class="node" tabindex="0">
+          <title>O LLM transforma a pergunta em até três consultas curtas e independentes, uma por assunto.</title>
+          <rect x="230" y="60" width="184" height="120" rx="12" fill="var(--c-orch-soft)" stroke="var(--c-orch)" stroke-width="1.5"></rect>
+          <circle cx="254" cy="86" r="12" fill="var(--c-orch)"></circle>
+          <text x="254" y="90" text-anchor="middle" font-size="12" font-weight="700" fill="var(--bg)">2</text>
+          <text class="n-title" x="276" y="90" fill="var(--ink)">Consultas</text>
+          <text class="n-line" x="246" y="118" fill="var(--ink-soft)">São criadas consultas</text>
+          <text class="n-line" x="246" y="136" fill="var(--ink-soft)">de busca, uma para</text>
+          <text class="n-line" x="246" y="154" fill="var(--ink-soft)">cada assunto detectado.</text>
+        </g>
+
+        <g class="node" tabindex="0">
+          <title>As consultas passam pelo pipeline de recuperação (BM25 e, opcionalmente, embeddings + RRF + reranking).</title>
+          <rect x="450" y="60" width="184" height="120" rx="12" fill="var(--c-kb-soft)" stroke="var(--c-kb)" stroke-width="1.5"></rect>
+          <circle cx="474" cy="86" r="12" fill="var(--c-kb)"></circle>
+          <text x="474" y="90" text-anchor="middle" font-size="12" font-weight="700" fill="var(--bg)">3</text>
+          <text class="n-title" x="496" y="90" fill="var(--ink)">Recuperação</text>
+          <text class="n-line" x="466" y="118" fill="var(--ink-soft)">Documentos relevantes</text>
+          <text class="n-line" x="466" y="136" fill="var(--ink-soft)">são recuperados da</text>
+          <text class="n-line" x="466" y="154" fill="var(--ink-soft)">base corporativa.</text>
+        </g>
+
+        <g class="node" tabindex="0">
+          <title>As seções escolhidas são montadas como blocos de evidência, com documento, seção e linhas de origem.</title>
+          <rect x="670" y="60" width="184" height="120" rx="12" fill="var(--c-kb-soft)" stroke="var(--c-kb)" stroke-width="1.5"></rect>
+          <circle cx="694" cy="86" r="12" fill="var(--c-kb)"></circle>
+          <text x="694" y="90" text-anchor="middle" font-size="12" font-weight="700" fill="var(--bg)">4</text>
+          <text class="n-title" x="716" y="90" fill="var(--ink)">Evidências</text>
+          <text class="n-line" x="686" y="118" fill="var(--ink-soft)">As evidências são</text>
+          <text class="n-line" x="686" y="136" fill="var(--ink-soft)">enviadas ao LLM, dentro</text>
+          <text class="n-line" x="686" y="154" fill="var(--ink-soft)">do orçamento de contexto.</text>
+        </g>
+
+        <g class="node" tabindex="0">
+          <title>O modelo escreve a resposta ancorada nas evidências recebidas, preservando cargos, faixas de valor e exceções.</title>
+          <rect x="890" y="60" width="184" height="120" rx="12" fill="var(--c-llm-soft)" stroke="var(--c-llm)" stroke-width="1.5"></rect>
+          <circle cx="914" cy="86" r="12" fill="var(--c-llm)"></circle>
+          <text x="914" y="90" text-anchor="middle" font-size="12" font-weight="700" fill="var(--bg)">5</text>
+          <text class="n-title" x="936" y="90" fill="var(--ink)">Geração</text>
+          <text class="n-line" x="906" y="118" fill="var(--ink-soft)">O LLM gera a resposta</text>
+          <text class="n-line" x="906" y="136" fill="var(--ink-soft)">fundamentada nessas</text>
+          <text class="n-line" x="906" y="154" fill="var(--ink-soft)">evidências.</text>
+        </g>
+
+        <path class="flow" d="M 196 120 L 226 120" stroke="var(--c-orch)" marker-end="url(#ah-step)"></path>
+        <path class="flow" d="M 416 120 L 446 120" stroke="var(--c-orch)" marker-end="url(#ah-step)"></path>
+        <path class="flow" d="M 636 120 L 666 120" stroke="var(--c-orch)" marker-end="url(#ah-step)"></path>
+        <path class="flow" d="M 856 120 L 886 120" stroke="var(--c-orch)" marker-end="url(#ah-step)"></path>
+
+        <text class="e-label" x="542" y="215" text-anchor="middle" fill="var(--ink-soft)">Retrieval — recuperar</text>
+        <text class="e-label" x="982" y="215" text-anchor="middle" fill="var(--ink-soft)">Generation — gerar</text>
+        <path d="M 10 232 L 856 232" stroke="var(--c-kb)" stroke-width="1.5" opacity=".45"></path>
+        <path d="M 890 232 L 1074 232" stroke="var(--c-llm)" stroke-width="1.5" opacity=".45"></path>
+      </svg>
+    </div>
+    <p class="scroll-hint">↔ Arraste para o lado para ver todas as etapas.</p>
+    <figcaption>O RAG é o que permite responder com a regra da Salcomp, e não com uma regra genérica inventada pelo modelo.</figcaption>
+  </figure>
+
+  <details class="tech">
+    <summary><span class="chev">▸</span> Ver as três chamadas ao LLM do Fluxo A<span class="hint">planejar · selecionar · responder</span></summary>
+    <div class="tech-body">
+      <p>Uma pergunta no Fluxo A gera <strong>três chamadas distintas</strong> ao modelo, com papéis diferentes:</p>
+      <ul>
+        <li><strong>1. Planejar</strong> — <code>_plan()</code>, temperatura <code>0.0</code>. Devolve JSON:
+          <code>{"queries": [...], "topics": [...], "needs_knowledge": true}</code>. Cria até 3 consultas
+          curtas e independentes. Saudação e conversa casual saem daqui com <code>needs_knowledge: false</code>
+          e o RAG nem é acionado.</li>
+        <li><strong>2. Selecionar</strong> — <code>_select_evidence()</code>, temperatura <code>0.0</code>.
+          Devolve <code>{"selected_ids": [...], "additional_queries": [...], "ready": true}</code>.</li>
+        <li><strong>3. Responder</strong> — <code>_answer()</code>, temperatura <code>0.25</code>. É a única
+          chamada que produz o texto que a pessoa lê.</li>
+      </ul>
+
+      <div class="where bm25">
+        <p><b>Onde entra o BM25:</b> exatamente entre a chamada 1 e a chamada 2. O LLM escreve as consultas, o BM25 as executa sobre a base Markdown, e o LLM volta para escolher o que serve.</p>
+      </div>
+
+      <h5>O ciclo pode repetir</h5>
+      <p>
+        Se a seleção responder <code>ready: false</code> e sugerir novas consultas, o orquestrador busca de novo —
+        limitado por <code>max_search_iterations: 2</code>. É o que permite responder perguntas com dois assuntos,
+        como “como faço a cotação <em>e</em> quem aprova esse valor”.
+      </p>
+    </div>
+  </details>
+</section>
+
+<!-- ============================ BASE ============================ -->
+<section id="base">
+  <h2 class="display">Base de conhecimento</h2>
+  <p class="sub">
+    A base é um conjunto de arquivos Markdown mantidos pela empresa. Não há banco vetorial externo nem
+    serviço de terceiros: os arquivos ficam na pasta <code>procedures_rag</code> e são indexados na subida.
+  </p>
+
+  <div class="grid three">
+    <div class="card c-kb">
+      <h4><code>RAG_SQMS_CAMPOS.md</code></h4>
+      <p>Os campos do SQMS e o que cada um significa no preenchimento de uma solicitação.</p>
+    </div>
+    <div class="card c-kb">
+      <h4><code>RAG_COTAÇÃO_COMPRAS.md</code></h4>
+      <p>O procedimento de cotação e compras: passos, papéis, validações e aprovações.</p>
+    </div>
+    <div class="card c-kb">
+      <h4><code>RAG_BASELINE_NOTEBOOK_COMPUTADOR.md</code></h4>
+      <p>O baseline de equipamentos de TI: notebooks e computadores, configurações e critérios.</p>
+    </div>
+  </div>
+
+  <h3>Como um documento vira trechos buscáveis</h3>
+  <p>
+    Cada arquivo é <strong>dividido em seções pelos títulos do Markdown</strong>, preservando a hierarquia
+    (título, subtítulo, sub-subtítulo). Cada seção vira uma unidade independente de busca, com estes campos:
+  </p>
+
+  <ul class="anatomy">
+    <li><span class="k">ID</span><span class="v">Identificador único da seção.</span></li>
+    <li><span class="k">Documento</span><span class="v">O arquivo de origem.</span></li>
+    <li><span class="k">Título</span><span class="v">O título do documento.</span></li>
+    <li><span class="k">Caminho da seção</span><span class="v">A trilha de títulos até ela.</span></li>
+    <li><span class="k">Linhas de origem</span><span class="v">Linha inicial e final no arquivo.</span></li>
+    <li><span class="k">Conteúdo</span><span class="v">O texto da seção em si.</span></li>
+  </ul>
+
+  <p style="margin-top:16px;">
+    É por causa desses campos que a resposta consegue vir <strong>com fontes</strong>: o sistema sabe
+    exatamente de qual documento, de qual seção e de quais linhas cada afirmação saiu.
+  </p>
+
+  <details class="tech">
+    <summary><span class="chev">▸</span> Ver como o Markdown vira índice<span class="hint">parser, campos e reindexação</span></summary>
+    <div class="tech-body">
+      <h5>A indexação</h5>
+      <p>
+        Na subida, <code>KnowledgeBase.reindex()</code> varre <code>**/*.md</code> em cada
+        <code>knowledge_paths</code> do fluxo — no fluxo <code>procurement</code>, a pasta
+        <code>../procedures_rag</code> — e passa cada arquivo pelo <code>MarkdownSectionParser</code>.
+        Dá para reindexar sem reiniciar com <code>POST /api/v1/knowledge/reindex</code>.
+      </p>
+
+      <h5>Os dois textos de cada seção</h5>
+      <ul>
+        <li><code>search_text</code> = título do documento + trilha de seções + metadados + conteúdo.
+          <strong>É esse texto que o BM25 indexa</strong> — por isso um termo que aparece só no título da
+          seção também é encontrável.</li>
+        <li><code>citation_text</code> = bloco <code>[EVIDENCE &lt;id&gt;]</code> com documento, seção e
+          linhas. <strong>É esse texto que vai para o LLM</strong>, e é dele que saem as fontes da resposta.</li>
+      </ul>
+
+      <h5>Hierarquia preservada</h5>
+      <p>
+        Cada seção guarda <code>parent_id</code>, <code>level</code> e <code>heading_path</code>. É isso que
+        depois permite a expansão pai/filhos/próxima seção na etapa de evidências — sem hierarquia, o trecho
+        chegaria ao modelo fora de contexto.
+      </p>
+    </div>
+  </details>
+</section>
+
+<!-- ============================ PIPELINE ============================ -->
+<section id="pipeline">
+  <h2 class="display">O pipeline de recuperação</h2>
+  <p class="sub">
+    Aqui está a parte que mais gera confusão. São quatro peças, e <strong>só uma delas está ligada hoje</strong>.
+    O diagrama abaixo mostra o caminho real: contínuo para o que está ativo, tracejado para o que existe no
+    código mas está desabilitado por padrão.
+  </p>
+
+  <figure>
+    <div class="figure">
+      <svg id="retrieval-svg" viewBox="0 0 1120 400" role="img" aria-labelledby="ret-title">
+        <title id="ret-title">Pipeline de recuperação: BM25 ativo e busca semântica desabilitada alimentam o RRF, que passa pelo reranking desabilitado antes de entregar os candidatos finais</title>
+        <defs>
+          <marker id="ah-on" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--ok)"></path>
+          </marker>
+          <marker id="ah-offm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--off)"></path>
+          </marker>
+        </defs>
+
+        <!-- consulta -->
+        <g class="node" tabindex="0">
+          <title>A consulta de busca gerada a partir da pergunta do usuário.</title>
+          <rect x="14" y="160" width="150" height="80" rx="12" fill="var(--surface-2)" stroke="var(--line-strong)" stroke-width="1.5"></rect>
+          <text class="n-title" x="89" y="196" text-anchor="middle" fill="var(--ink)">Consulta</text>
+          <text class="n-line" x="89" y="216" text-anchor="middle" fill="var(--ink-soft)">de busca</text>
+        </g>
+
+        <!-- BM25 ativo -->
+        <g class="node" tabindex="0">
+          <title>BM25: busca lexical por palavras, ativa por padrão. Biblioteca bm25s, classe bm25s.BM25.</title>
+          <rect x="228" y="66" width="220" height="112" rx="12" fill="var(--ok-soft)" stroke="var(--ok)" stroke-width="2"></rect>
+          <text class="n-tag" x="248" y="92" fill="var(--ok)">Ativo</text>
+          <text class="n-title" x="248" y="116" fill="var(--ink)">BM25 — busca lexical</text>
+          <text class="n-line" x="248" y="138" fill="var(--ink-soft)">Compara palavras da pergunta</text>
+          <text class="n-line" x="248" y="156" fill="var(--ink-soft)">com palavras dos documentos</text>
+        </g>
+
+        <!-- Semântica desabilitada -->
+        <g class="node" tabindex="0">
+          <title>Busca semântica por embeddings: desabilitada por padrão. Só liga com SQMS_AI_SEMANTIC_ENABLED=true.</title>
+          <rect x="228" y="222" width="220" height="112" rx="12" fill="transparent" stroke="var(--off)" stroke-width="2" stroke-dasharray="7 6"></rect>
+          <text class="n-tag" x="248" y="248" fill="var(--off)">Desabilitada</text>
+          <text class="n-title" x="248" y="272" fill="var(--off)">Busca semântica</text>
+          <text class="n-line" x="248" y="294" fill="var(--off)">Embeddings — encontra sentido</text>
+          <text class="n-line" x="248" y="312" fill="var(--off)">parecido com outras palavras</text>
+        </g>
+
+        <!-- RRF -->
+        <g class="node" tabindex="0">
+          <title>RRF (Reciprocal Rank Fusion): combina os rankings recebidos numa lista única. Com a busca semântica desligada, recebe apenas o ranking do BM25.</title>
+          <rect x="512" y="140" width="180" height="120" rx="12" fill="var(--c-orch-soft)" stroke="var(--c-orch)" stroke-width="2"></rect>
+          <text class="n-tag" x="532" y="166" fill="var(--c-orch)">Fusão</text>
+          <text class="n-title" x="532" y="190" fill="var(--ink)">RRF</text>
+          <text class="n-line" x="532" y="212" fill="var(--ink-soft)">Combina rankings</text>
+          <text class="n-line" x="532" y="230" fill="var(--ink-soft)">de mecanismos</text>
+          <text class="n-line" x="532" y="248" fill="var(--ink-soft)">diferentes</text>
+        </g>
+
+        <!-- rerank -->
+        <g class="node" tabindex="0">
+          <title>Reranking: segunda etapa de ordenação com um modelo CrossEncoder. Desabilitado por padrão — hoje a lista passa direto.</title>
+          <rect x="756" y="140" width="180" height="120" rx="12" fill="transparent" stroke="var(--off)" stroke-width="2" stroke-dasharray="7 6"></rect>
+          <text class="n-tag" x="776" y="166" fill="var(--off)">Desabilitado</text>
+          <text class="n-title" x="776" y="190" fill="var(--off)">Reranking</text>
+          <text class="n-line" x="776" y="212" fill="var(--off)">Reordena os</text>
+          <text class="n-line" x="776" y="230" fill="var(--off)">candidatos por</text>
+          <text class="n-line" x="776" y="248" fill="var(--off)">relevância fina</text>
+        </g>
+
+        <!-- final -->
+        <g class="node" tabindex="0">
+          <title>Os candidatos finais seguem para a etapa de seleção de evidências, feita pelo LLM.</title>
+          <rect x="1000" y="150" width="106" height="100" rx="12" fill="var(--c-kb-soft)" stroke="var(--c-kb)" stroke-width="1.5"></rect>
+          <text class="n-title" x="1053" y="188" text-anchor="middle" fill="var(--ink)">Candidatos</text>
+          <text class="n-line" x="1053" y="208" text-anchor="middle" fill="var(--ink-soft)">finais</text>
+          <text class="n-line" x="1053" y="226" text-anchor="middle" fill="var(--ink-soft)">→ evidências</text>
+        </g>
+
+        <!-- conexões -->
+        <path class="flow" d="M 166 180 C 200 180, 200 122, 224 122" stroke="var(--ok)" marker-end="url(#ah-on)"></path>
+        <path d="M 166 220 C 200 220, 200 278, 224 278" fill="none" stroke="var(--off)" stroke-width="2" stroke-dasharray="4 7" opacity=".65"></path>
+
+        <path class="flow" d="M 450 122 C 484 122, 484 178, 508 178" stroke="var(--ok)" marker-end="url(#ah-on)"></path>
+        <path d="M 450 278 C 484 278, 484 222, 508 222" fill="none" stroke="var(--off)" stroke-width="2" stroke-dasharray="4 7" opacity=".65"></path>
+
+        <path d="M 694 200 L 752 200" fill="none" stroke="var(--off)" stroke-width="2" stroke-dasharray="4 7" opacity=".65" marker-end="url(#ah-offm)"></path>
+        <path d="M 938 200 L 996 200" fill="none" stroke="var(--off)" stroke-width="2" stroke-dasharray="4 7" opacity=".65" marker-end="url(#ah-offm)"></path>
+
+        <!-- bypass -->
+        <path class="flow" d="M 700 128 C 800 96, 900 96, 1000 168" stroke="var(--ok)" marker-end="url(#ah-on)" opacity=".85"></path>
+        <text class="e-label" x="846" y="96" text-anchor="middle" fill="var(--ok)">hoje: passa direto (sem reranking)</text>
+
+        <text class="e-label" x="336" y="364" text-anchor="middle" fill="var(--off)">só com SQMS_AI_SEMANTIC_ENABLED=true</text>
+        <text class="e-label" x="846" y="292" text-anchor="middle" fill="var(--off)">só com SQMS_AI_RERANK_ENABLED=true</text>
+      </svg>
+    </div>
+    <p class="scroll-hint">↔ Arraste para o lado para ver o pipeline inteiro.</p>
+    <figcaption>
+      Traço contínuo e colorido = caminho ativo hoje. Traço cinza pontilhado = caminho que só existe se
+      a variável de ambiente correspondente for ligada.
+    </figcaption>
+  </figure>
+
+  <details class="tech">
+    <summary><span class="chev">▸</span> Ver os parâmetros do pipeline<span class="hint">nenhum LLM roda nesta etapa</span></summary>
+    <div class="tech-body">
+      <h5>O método, na íntegra conceitual</h5>
+      <pre><code>lexical  = BM25.search(query, 15)          # lexical_candidates = 15
+semantic = Semantic.search(query, 15)     # semantic_candidates = 15  (vazio hoje)
+candidates = RRF([lexical, semantic], 16) # max(final_candidates * 2, 12)
+return Reranker.rerank(query, candidates, 8)  # final_candidates = 8</code></pre>
+
+      <ul>
+        <li>Antes da fusão, os resultados são filtrados por fluxo: só entram seções que pertencem ao
+          <code>flow_id</code> da pergunta.</li>
+        <li>Com a busca semântica desligada, <code>semantic</code> é sempre uma lista vazia — o RRF recebe
+          um ranking só.</li>
+        <li>Com o reranking desligado, <code>rerank()</code> devolve <code>results[:limit]</code>, ou seja,
+          apenas corta a lista.</li>
+      </ul>
+
+      <div class="where llm">
+        <p><b>Onde entra o LLM:</b> em lugar nenhum. Esta etapa é 100% algorítmica e determinística — o modelo só aparece antes (escrevendo as consultas) e depois (selecionando e respondendo).</p>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- ============================ BM25 ============================ -->
+<section id="bm25">
+  <h2 class="display">BM25 — a busca que está ligada</h2>
+  <p class="sub">
+    BM25 é um <strong>algoritmo de recuperação lexical</strong>: ele trabalha com <em>palavras</em> e com
+    a <em>frequência</em> em que elas aparecem. É a peça que hoje encontra os trechos certos nos
+    documentos da Salcomp.
+  </p>
+
+  <div class="badge-row">
+    <span class="badge on">BM25: ativo por padrão</span>
+    <span class="badge code">bm25s</span>
+    <span class="badge code">bm25s.BM25</span>
+    <span class="badge info">Busca lexical, não generativa</span>
+  </div>
+
+  <h3>Como ele decide o que é relevante</h3>
+  <ul class="steps" style="--accent: var(--ok);">
+    <li>
+      <strong>Compara os termos da pergunta com os termos dos documentos</strong>
+      <span>Se você pergunta por “cotação”, ele procura seções que contenham essa palavra.</span>
+    </li>
+    <li>
+      <strong>Considera a frequência das palavras</strong>
+      <span>Uma seção que fala de “cotação” várias vezes provavelmente é mais sobre cotação do que uma que cita a palavra de passagem.</span>
+    </li>
+    <li>
+      <strong>Considera a relevância do termo no conjunto</strong>
+      <span>Palavras raras pesam mais. “Baseline” diz muito mais sobre o assunto do que “de” ou “para”.</span>
+    </li>
+    <li>
+      <strong>Penaliza documentos muito longos</strong>
+      <span>Um texto enorme tende a conter qualquer palavra por acaso; o algoritmo corrige esse viés pelo tamanho.</span>
+    </li>
+    <li>
+      <strong>É ótimo quando os termos batem</strong>
+      <span>Funciona muito bem quando a pessoa usa exatamente — ou quase — as mesmas palavras do procedimento.</span>
+    </li>
+  </ul>
+
+  <div class="note">
+    <p>
+      <strong>Importante, para não haver confusão:</strong> BM25 <strong>não é inteligência artificial
+      generativa</strong>. É um algoritmo de busca lexical, matemático e determinístico, criado décadas
+      antes dos LLMs. Ele não escreve nada — apenas encontra e ordena trechos. Quem escreve a resposta é
+      o LLM, depois.
+    </p>
+  </div>
+
+  <details class="tech">
+    <summary><span class="chev">▸</span> Ver a implementação do BM25<span class="hint">bm25s, stopwords em português</span></summary>
+    <div class="tech-body">
+      <h5>Indexação</h5>
+      <pre><code>tokens = bm25s.tokenize([s.search_text for s in sections], stopwords="pt")
+retriever = bm25s.BM25(corpus=corpus)
+retriever.index(tokens, show_progress=False)</code></pre>
+
+      <h5>Consulta</h5>
+      <pre><code>query_tokens   = bm25s.tokenize([query], stopwords="pt")
+results, scores = retriever.retrieve(query_tokens, k=min(limit, len(sections)))
+# resultados com score &lt;= 0 são descartados</code></pre>
+
+      <ul>
+        <li><strong>Stopwords em português</strong> (<code>stopwords="pt"</code>): “de”, “para”, “o”, “a” são
+          removidos antes de pontuar — é isso que impede que palavras vazias dominem o ranking.</li>
+        <li>O índice vive <strong>em memória</strong>, reconstruído na subida do serviço ou no reindex. Não há
+          banco de busca externo.</li>
+        <li>Não exige GPU nem download de modelo: é matemática sobre contagem de palavras.</li>
+      </ul>
+
+      <div class="where bm25">
+        <p><b>Resumindo o papel dele:</b> o BM25 é a única peça de recuperação que roda hoje. Se ele não encontrar a seção certa, nenhuma etapa posterior conserta — o LLM só vê o que o BM25 trouxe.</p>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- ============================ SEMÂNTICA ============================ -->
+<section id="semantica">
+  <h2 class="display">Busca semântica por embeddings</h2>
+  <p class="sub">
+    Componente <strong>opcional</strong>. Complementa o BM25 nos casos em que a pessoa descreve a
+    situação com palavras totalmente diferentes das que estão escritas no procedimento.
+  </p>
+
+  <div class="badge-row">
+    <span class="badge off">Busca semântica: desabilitada por padrão</span>
+    <span class="badge code">sentence-transformers</span>
+    <span class="badge code">BAAI/bge-m3</span>
+    <span class="badge code">SQMS_AI_SEMANTIC_ENABLED=true</span>
+  </div>
+
+  <div class="grid two">
+    <div class="card c-orch dashed">
+      <h4>O que ela faz</h4>
+      <ul>
+        <li>Converte perguntas e documentos em <span class="tip" data-tip="Listas de números que representam o significado do texto. Textos com sentido parecido ficam próximos nesse espaço numérico.">vetores</span>.</li>
+        <li>Encontra textos <strong>semanticamente parecidos</strong> mesmo quando as palavras são diferentes.</li>
+        <li>Usa a biblioteca <code>sentence-transformers</code>.</li>
+        <li>O modelo configurado é <code>BAAI/bge-m3</code>.</li>
+      </ul>
+    </div>
+    <div class="card c-orch dashed">
+      <h4>Status real hoje</h4>
+      <p>
+        Está <strong>desabilitada por padrão</strong>. Só é ativada quando
+        <code>SQMS_AI_SEMANTIC_ENABLED=true</code>.
+      </p>
+      <p>
+        Na prática: hoje o sistema <strong>não gera embeddings</strong> e não faz busca por similaridade
+        de significado. O código está pronto, mas o caminho não é executado.
+      </p>
+    </div>
+  </div>
+
+  <details class="tech">
+    <summary><span class="chev">▸</span> Ver a implementação dos embeddings<span class="hint">por que ela não roda hoje</span></summary>
+    <div class="tech-body">
+      <pre><code>model = SentenceTransformer("BAAI/bge-m3")
+embeddings = model.encode(textos, normalize_embeddings=True)
+scores = embeddings @ query_embedding      # produto escalar = similaridade</code></pre>
+
+      <ul>
+        <li>Como os vetores são normalizados, o produto escalar equivale à similaridade de cosseno.</li>
+        <li>Depende do extra opcional: <code>pip install -e ".[semantic]"</code>. Sem ele, ligar a flag
+          levanta <code>RuntimeError</code> pedindo a instalação.</li>
+        <li>Com <code>enabled=False</code>, tanto <code>index()</code> quanto <code>search()</code> retornam
+          imediatamente — <strong>nenhum modelo é baixado e nenhum vetor é calculado</strong>.</li>
+      </ul>
+
+      <h5>Para ligar</h5>
+      <pre><code>SQMS_AI_SEMANTIC_ENABLED=true
+SQMS_AI_EMBEDDING_MODEL=BAAI/bge-m3</code></pre>
+      <p>
+        Custo a considerar antes de ligar: a indexação passa a rodar um modelo sobre todas as seções na
+        subida, o que exige memória e tempo — e, sem GPU, deixa o start bem mais lento.
+      </p>
+    </div>
+  </details>
+</section>
+
+<!-- ============================ RRF ============================ -->
+<section id="rrf">
+  <h2 class="display">RRF — Reciprocal Rank Fusion</h2>
+  <p class="sub">
+    Peça <strong>intermediária e complementar</strong>: ela existe para <em>juntar</em> os resultados de
+    mecanismos de busca diferentes numa única lista ordenada.
+  </p>
+
+  <div class="grid two">
+    <div class="card c-orch">
+      <h4>O que o RRF combina</h4>
+      <ul>
+        <li>O ranking do <strong>BM25</strong> (busca lexical).</li>
+        <li>O ranking da <strong>busca semântica por embeddings</strong>.</li>
+      </ul>
+      <p>
+        Ele não soma notas — que seriam incomparáveis entre si. Ele olha <strong>a posição</strong> de cada
+        trecho em cada lista: quem aparece bem colocado em mais de um mecanismo sobe na lista final.
+      </p>
+    </div>
+    <div class="card c-orch">
+      <h4>O que acontece no estado atual</h4>
+      <p>
+        Como a busca semântica está desabilitada, o RRF recebe <strong>apenas um ranking</strong>, o do
+        BM25.
+      </p>
+      <p>
+        Ou seja: a fusão continua no caminho, mas <strong>o ranking efetivo vem principalmente do
+        BM25</strong>. O RRF só passa a fazer diferença de verdade quando um segundo mecanismo for ligado.
+      </p>
+    </div>
+  </div>
+
+  <div class="badge-row" style="margin-top:16px;">
+    <span class="badge info">RRF: disponível para combinar rankings</span>
+    <span class="badge on">Hoje recebe só o ranking do BM25</span>
+  </div>
+
+  <details class="tech">
+    <summary><span class="chev">▸</span> Ver a fórmula do RRF<span class="hint">por que soma posição, não nota</span></summary>
+    <div class="tech-body">
+      <pre><code>for lista in [lexical, semantic]:
+    for rank, item in enumerate(lista, start=1):
+        score[item.id] += 1 / (60 + rank)     # k = 60</code></pre>
+
+      <ul>
+        <li>O 1º colocado soma <code>1/61 ≈ 0,0164</code>; o 10º soma <code>1/70 ≈ 0,0143</code>. A diferença é
+          pequena de propósito: o RRF valoriza <strong>aparecer bem em várias listas</strong> mais do que
+          liderar uma só.</li>
+        <li>Ele ignora a escala das notas — e isso é o ponto. A nota do BM25 e a similaridade de cosseno vivem
+          em escalas incomparáveis; somá-las diretamente seria errado.</li>
+        <li>O <code>k = 60</code> amortece o peso das primeiras posições, evitando que um único mecanismo
+          domine a lista final.</li>
+      </ul>
+
+      <div class="where">
+        <p><b>Hoje, na prática:</b> com uma lista só na entrada, a soma preserva a ordem que o BM25 já tinha. O RRF está no caminho, mas não muda nada — ele só passa a ter efeito quando um segundo mecanismo for ligado.</p>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- ============================ RERANK ============================ -->
+<section id="rerank">
+  <h2 class="display">Reranking</h2>
+  <p class="sub">
+    Reranking é uma <strong>segunda etapa de ordenação</strong>. A primeira busca é rápida e ampla; o
+    reranker é lento e criterioso, e reavalia os finalistas um a um.
+  </p>
+
+  <ul class="steps" style="--accent: var(--off);">
+    <li>
+      <strong>A busca inicial recupera vários candidatos</strong>
+      <span>O objetivo aqui é abrangência: trazer tudo que pode ser relevante, sem se preocupar com a ordem exata.</span>
+    </li>
+    <li>
+      <strong>Um modelo mais especializado reavalia cada par pergunta–trecho</strong>
+      <span>Diferente da busca, ele lê a pergunta e o trecho juntos e julga o quanto um responde ao outro.</span>
+    </li>
+    <li>
+      <strong>Os resultados são reorganizados por relevância</strong>
+      <span>A lista final chega ao LLM com os melhores trechos no topo.</span>
+    </li>
+  </ul>
+
+  <div class="badge-row">
+    <span class="badge info">O projeto tem suporte a reranking</span>
+    <span class="badge code">sentence-transformers.CrossEncoder</span>
+    <span class="badge code">BAAI/bge-reranker-v2-m3</span>
+    <span class="badge off">Reranking: desabilitado por padrão</span>
+    <span class="badge code">SQMS_AI_RERANK_ENABLED=true</span>
+  </div>
+
+  <div class="note">
+    <p>
+      <strong>Conclusão honesta:</strong> o sistema <strong>não está usando reranking em produção por
+      padrão</strong>. A implementação existe e é a que está descrita acima, mas fica inativa enquanto a
+      variável de ambiente não for ligada.
+    </p>
+  </div>
+
+  <details class="tech">
+    <summary><span class="chev">▸</span> Ver a implementação do reranker<span class="hint">CrossEncoder, carregado sob demanda</span></summary>
+    <div class="tech-body">
+      <pre><code>model = CrossEncoder("BAAI/bge-reranker-v2-m3")     # carregado no 1º uso
+scores = model.predict([(query, s.search_text) for s in results])
+results = ordenar_por(scores)[:limit]</code></pre>
+
+      <h5>A diferença entre buscar e reranquear</h5>
+      <p>
+        A busca compara a pergunta com um índice — rápida, mas grosseira. O <em>CrossEncoder</em> lê
+        <strong>a pergunta e o trecho juntos, no mesmo passe</strong>, e devolve o quanto um responde ao outro.
+        É muito mais preciso e muito mais caro: por isso só se aplica aos finalistas, nunca à base inteira.
+      </p>
+
+      <h5>Com a flag desligada</h5>
+      <pre><code>if not self.enabled or not results:
+    return results[:limit]        # passa direto, sem reordenar</code></pre>
+      <p>
+        Ou seja: hoje a ordem que chega ao LLM é <strong>a ordem do BM25</strong>. Para ligar:
+        <code>SQMS_AI_RERANK_ENABLED=true</code> (também exige o extra <code>semantic</code> instalado,
+        porque o <code>CrossEncoder</code> vem do <code>sentence-transformers</code>).
+      </p>
+    </div>
+  </details>
+</section>
+
+<!-- ============================ EVIDÊNCIAS ============================ -->
+<section id="evidencias">
+  <h2 class="display">Seleção de evidências</h2>
+  <p class="sub">
+    Antes de escrever a resposta, há <strong>outra chamada ao LLM</strong> — dessa vez não para responder,
+    mas para <em>escolher</em>. É o que separa “achou algo parecido” de “achou o que responde”.
+  </p>
+
+  <div class="grid two">
+    <div class="card c-llm">
+      <span class="kicker">Chamada ao LLM</span>
+      <h4>O que essa etapa faz</h4>
+      <ul>
+        <li><strong>Analisa os candidatos recuperados</strong> pelo pipeline de busca.</li>
+        <li><strong>Seleciona as seções necessárias</strong> para responder — podem ser várias, complementares.</li>
+        <li><strong>Pode solicitar novas consultas</strong> se perceber que faltou um assunto na pergunta.</li>
+      </ul>
+    </div>
+    <div class="card c-kb">
+      <span class="kicker">Expansão</span>
+      <h4>Trazendo o contexto ao redor</h4>
+      <p>
+        Um trecho isolado costuma perder o sentido. Por isso, depois de escolher as seções, o sistema
+        <strong>expande as seções relacionadas</strong>:
+      </p>
+      <ul>
+        <li>a <strong>seção pai</strong>, para recuperar o enquadramento;</li>
+        <li>as <strong>seções filhas</strong>, para pegar os detalhes;</li>
+        <li>a <strong>seção seguinte</strong>, para não cortar o procedimento no meio.</li>
+      </ul>
+    </div>
+  </div>
+
+  <p style="margin-top:16px;">
+    Esse ciclo — buscar, selecionar, e se necessário buscar de novo — é o que dá ao assistente a chance de
+    responder perguntas que misturam dois assuntos, como “como faço a cotação <em>e</em> quem aprova esse valor”.
+  </p>
+
+  <details class="tech">
+    <summary><span class="chev">▸</span> Ver o ciclo de decisão e o orçamento de contexto<span class="hint">até 2 rodadas de busca</span></summary>
+    <div class="tech-body">
+      <h5>O que o modelo recebe para decidir</h5>
+      <p>
+        Um catálogo com os <strong>10 melhores candidatos</strong>, cada um cortado em 1.200 caracteres —
+        o suficiente para julgar relevância sem gastar contexto à toa.
+      </p>
+
+      <h5>As saídas possíveis</h5>
+      <ul>
+        <li><code>ready: true</code> → segue para a resposta com os <code>selected_ids</code> escolhidos.</li>
+        <li><code>ready: false</code> + <code>additional_queries</code> → nova rodada de busca (limite:
+          <code>max_search_iterations = 2</code>).</li>
+        <li>Se nada for selecionado, há um fallback: os <strong>4 melhores</strong> candidatos entram assim mesmo.</li>
+      </ul>
+
+      <h5>Expansão</h5>
+      <p>
+        <code>KnowledgeBase.expand()</code> acrescenta, para cada seção escolhida: a <strong>seção pai</strong>,
+        todas as <strong>seções filhas</strong> e a <strong>próxima seção irmã</strong> — e sempre checando se
+        a seção pertence ao fluxo, para a expansão não vazar conteúdo de outra base.
+      </p>
+
+      <h5>Orçamento de contexto</h5>
+      <pre><code>max_evidence_tokens = 2100        # ≈ 8.400 caracteres (4 chars por token)
+llm_context_tokens  = 4096</code></pre>
+      <p>
+        As evidências são empacotadas até esse limite; o que não couber fica de fora, e um último trecho pode
+        entrar cortado se sobrarem mais de 500 caracteres de espaço.
+      </p>
+    </div>
+  </details>
+</section>
+
+<!-- ============================ MEMÓRIA ============================ -->
+<section id="memoria">
+  <h2 class="display">Memória de conversa</h2>
+  <p class="sub">
+    Sem memória, cada pergunta começaria do zero. Com memória, a pessoa pode dizer “e para valores maiores?”
+    e o assistente sabe do que ela está falando.
+  </p>
+
+  <div class="grid two">
+    <div class="card c-orch">
+      <h4>Como funciona</h4>
+      <ul>
+        <li><strong>Memória de conversa por sessão</strong> — cada conversa tem seu próprio histórico.</li>
+        <li>Armazenada em um banco <strong>SQLite</strong>, o arquivo <code>sessions.db</code>.</li>
+        <li>Há um <strong>limite de mensagens armazenadas</strong>: as mais antigas são descartadas conforme a conversa avança.</li>
+      </ul>
+    </div>
+    <div class="card c-back">
+      <h4>Por que ela é segura</h4>
+      <p>
+        As <strong>sessões são vinculadas ao usuário pelo backend</strong>. O identificador que o navegador
+        conhece é público; o backend o transforma em uma chave interna derivada do usuário autenticado.
+      </p>
+      <p>
+        Consequência prática: mesmo que alguém descubra o identificador de sessão de outra pessoa, não
+        alcança a conversa dela.
+      </p>
+    </div>
+  </div>
+
+  <details class="tech">
+    <summary><span class="chev">▸</span> Ver as duas memórias do sistema<span class="hint">SQLite no orquestrador, store no backend</span></summary>
+    <div class="tech-body">
+      <h5>Memória do orquestrador (Fluxo A)</h5>
+      <pre><code>data/sessions.db  —  SQLite
+messages(id, session_id, role, content, created_at)
+max_history_messages = 8</code></pre>
+      <p>
+        A cada <code>append</code>, um <code>DELETE</code> apaga tudo que passar das 8 mensagens mais recentes
+        daquela sessão — a tabela não cresce indefinidamente. O acesso é serializado por um lock, então
+        requisições concorrentes não corrompem o arquivo.
+      </p>
+
+      <h5>Memória do agente (Fluxo B)</h5>
+      <p>
+        O agente usa o <code>DraftSessionStore</code> do próprio SQMS, com a chave
+        <code>assistant:&lt;sessão interna&gt;</code> e as mesmas 8 mensagens. O store usa Redis quando
+        <code>REDIS_URL</code> está configurado; <strong>hoje a variável está vazia no <code>.env</code></strong>,
+        então ele opera em memória do processo — o histórico se perde quando o backend reinicia.
+      </p>
+
+      <h5>O vínculo com o usuário</h5>
+      <pre><code>internal_session_id = sha256(f"{user_id}:{public_session_id}")</code></pre>
+      <p>
+        As duas memórias são indexadas por essa chave derivada. Descobrir o identificador público de outra
+        pessoa não dá acesso à conversa dela, porque a chave real depende do usuário autenticado.
+      </p>
+    </div>
+  </details>
+</section>
+
+<!-- ============================ LLM ============================ -->
+<section id="llm">
+  <h2 class="display">O provedor LLM</h2>
+  <p class="sub">
+    O modelo de linguagem é tratado como um serviço trocável. Nada na arquitetura depende de um fornecedor
+    específico.
+  </p>
+
+  <div class="grid two">
+    <div class="card c-llm">
+      <h4>Como o modelo é acessado</h4>
+      <ul>
+        <li><strong>API compatível com OpenAI</strong> — o padrão de mercado para chamadas de chat.</li>
+        <li>Endpoint <code>/chat/completions</code>.</li>
+        <li><strong>Modelo configurável por ambiente</strong>, sem alteração de código.</li>
+        <li><strong>Temperatura baixa</strong>, para respostas mais determinísticas e menos criativas.</li>
+      </ul>
+    </div>
+    <div class="card c-llm dashed">
+      <h4>Por que temperatura baixa</h4>
+      <p>
+        Em procedimento corporativo, criatividade é defeito. Faixas de valor, cargos, ordem de aprovação e
+        exceções precisam sair exatamente como estão escritos na evidência — não numa versão “melhorada”
+        pelo modelo.
+      </p>
+    </div>
+  </div>
+
+  <details class="tech">
+    <summary><span class="chev">▸</span> Ver qual modelo está em uso<span class="hint">gateway, endpoint, temperaturas e retentativas</span></summary>
+    <div class="tech-body">
+      <h5>O provedor</h5>
+      <p>
+        É um <strong>gateway interno compatível com OpenAI</strong> — a <strong>Lity</strong>, descrita no
+        README do orquestrador como o provider inicial, sem acoplamento com o núcleo. Backend e orquestrador
+        apontam para o <em>mesmo</em> gateway, por variáveis diferentes:
+      </p>
+      <pre><code># orquestrador          # backend
+SQMS_AI_LLM_BASE_URL    LLM_BASE_URL     = http://10.64.10.48/v1
+SQMS_AI_LLM_API_KEY     LLM_API_KEY
+SQMS_AI_LLM_MODEL       LLM_MODEL        = auto</code></pre>
+
+      <h5>Qual modelo responde</h5>
+      <p>
+        O valor configurado é <code>auto</code>: quem escolhe o modelo real é o gateway, não a aplicação.
+        O nome efetivo volta no campo <code>model</code> de cada resposta e é repassado até a tela — numa
+        verificação direta ao gateway, <code>auto</code> foi resolvido para <code>qwen35-122b</code>.
+        Trocar de modelo é trocar variável de ambiente; nenhuma linha de código muda.
+      </p>
+
+      <h5>Parâmetros por tipo de chamada</h5>
+      <ul>
+        <li><strong>Resposta final (Fluxo A):</strong> <code>temperature = 0.25</code>.</li>
+        <li><strong>Etapas de JSON</strong> (planejar e selecionar evidências): <code>temperature = 0.0</code>.</li>
+        <li><strong>Agente (Fluxo B):</strong> <code>max_tokens = 1200</code>, com <em>tool calling</em> nativo
+          no formato OpenAI.</li>
+        <li><strong>Contexto:</strong> <code>SQMS_AI_LLM_CONTEXT_TOKENS = 4096</code>.</li>
+      </ul>
+
+      <h5>Resiliência</h5>
+      <p>
+        Timeout de <strong>120 segundos</strong> e até <strong>3 tentativas</strong> com espera crescente
+        (0,5s → 1s → 2s) em falha de conexão ou nos status <code>429</code>, <code>500</code>,
+        <code>502</code>, <code>503</code> e <code>504</code>. Se ainda assim falhar, o erro sobe como
+        <code>502</code> para o frontend, que mostra o botão de tentar de novo.
+      </p>
+    </div>
+  </details>
+</section>
+
+<!-- ============================ RESPOSTA ============================ -->
+<section id="resposta">
+  <h2 class="display">A resposta final</h2>
+  <p class="sub">
+    Na última chamada, o modelo recebe tudo o que as camadas anteriores prepararam — e devolve um pacote
+    completo, não só um texto.
+  </p>
+
+  <div class="grid two">
+    <div class="card c-orch">
+      <span class="kicker">Entra</span>
+      <h4>O que o LLM recebe</h4>
+      <ul>
+        <li>A <strong>pergunta atual</strong>.</li>
+        <li>O <strong>histórico recente</strong> da conversa.</li>
+        <li>As <strong>evidências recuperadas</strong> da base de procedimentos.</li>
+        <li>O <strong>contexto do SQMS</strong>, quando aplicável — o snapshot da tela e os dados reais.</li>
+      </ul>
+    </div>
+    <div class="card c-back">
+      <span class="kicker">Sai</span>
+      <h4>O que volta para a tela</h4>
+      <ul>
+        <li>A <strong>resposta em português</strong>.</li>
+        <li>As <strong>fontes consultadas</strong>: documento, seção e linhas.</li>
+        <li>O <strong>ID da sessão</strong>, para a conversa continuar.</li>
+        <li>O <strong>modelo utilizado</strong> na geração.</li>
+      </ul>
+    </div>
+  </div>
+
+  <details class="tech">
+    <summary><span class="chev">▸</span> Ver o formato da resposta<span class="hint">o payload que chega na tela</span></summary>
+    <div class="tech-body">
+      <pre><code>{
+  "answer":     "texto em português",
+  "session_id": "uuid público",
+  "flow_id":    "procurement",
+  "model":      "modelo que respondeu",
+  "sources":    [ { "id", "document", "title", "section", "lines", "score" } ],
+  "debug":      null
+}</code></pre>
+
+      <ul>
+        <li>Os dois fluxos devolvem <strong>o mesmo formato</strong> — o frontend não precisa saber por onde a
+          pergunta passou. No Fluxo B, <code>sources</code> vem vazio, porque a resposta veio de dados do SQMS
+          e não de seções de documento.</li>
+        <li><code>lines</code> é o intervalo de linhas no arquivo Markdown original: dá para abrir o documento e
+          conferir a frase exata que embasou a resposta.</li>
+        <li><code>debug</code> só é preenchido quando <code>SQMS_AI_DEBUG_RESPONSES=true</code>, e traz o plano,
+          as consultas executadas e os IDs candidatos e selecionados — é a ferramenta para entender por que uma
+          resposta saiu como saiu.</li>
+      </ul>
+
+      <h5>Registro de uso</h5>
+      <p>
+        Cada resposta do Fluxo B registra uso de IA em segundo plano (usuário, operação, modelo, tokens,
+        latência e status), sem bloquear a resposta. A operação é nomeada por tela — por exemplo
+        <code>chat:approval.list+1tool</code> — o que permite saber depois quais telas realmente usam o
+        assistente e quantas rodadas de ferramenta foram necessárias.
+      </p>
+    </div>
+  </details>
+</section>
+
+<!-- ============================ ESTADO ATUAL ============================ -->
+<section id="estado">
+  <h2 class="display">Estado atual da implementação</h2>
+  <p class="sub">
+    A distinção que importa: <strong>o que está ligado hoje</strong> versus <strong>o que apenas existe no
+    código</strong>. Tudo abaixo foi verificado na configuração padrão do projeto.
+  </p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Componente</th>
+          <th scope="col">Situação</th>
+          <th scope="col">Observação</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="item">BM25</td>
+          <td><span class="badge on">Ativo</span></td>
+          <td>A busca lexical que sustenta a recuperação hoje.</td>
+        </tr>
+        <tr>
+          <td class="item">Biblioteca BM25</td>
+          <td><span class="badge code">bm25s</span></td>
+          <td>Classe utilizada: <code>bm25s.BM25</code>.</td>
+        </tr>
+        <tr>
+          <td class="item">Busca semântica</td>
+          <td><span class="badge off">Desabilitada por padrão</span></td>
+          <td>Ativa apenas com <code>SQMS_AI_SEMANTIC_ENABLED=true</code>.</td>
+        </tr>
+        <tr>
+          <td class="item">Embeddings</td>
+          <td><span class="badge code">BAAI/bge-m3</span></td>
+          <td>Modelo configurado, via <code>sentence-transformers</code>.</td>
+        </tr>
+        <tr>
+          <td class="item">Reranking</td>
+          <td><span class="badge off">Desabilitado por padrão</span></td>
+          <td>Ativa apenas com <code>SQMS_AI_RERANK_ENABLED=true</code>.</td>
+        </tr>
+        <tr>
+          <td class="item">Reranker</td>
+          <td><span class="badge code">sentence-transformers.CrossEncoder</span></td>
+          <td>A implementação de reranking suportada pelo projeto.</td>
+        </tr>
+        <tr>
+          <td class="item">Modelo de reranking</td>
+          <td><span class="badge code">BAAI/bge-reranker-v2-m3</span></td>
+          <td>Modelo configurado para a segunda ordenação.</td>
+        </tr>
+        <tr>
+          <td class="item">RRF</td>
+          <td><span class="badge info">Disponível para combinar rankings</span></td>
+          <td>Hoje recebe efetivamente apenas o ranking do BM25.</td>
+        </tr>
+        <tr>
+          <td class="item">Base principal</td>
+          <td><span class="badge code">procedures_rag</span></td>
+          <td>Arquivos Markdown, divididos em seções por títulos.</td>
+        </tr>
+        <tr>
+          <td class="item">Memória</td>
+          <td><span class="badge on">SQLite</span></td>
+          <td>Arquivo <code>sessions.db</code>, com limite de mensagens por sessão.</td>
+        </tr>
+        <tr>
+          <td class="item">Execução de ações no SQMS</td>
+          <td><span class="badge off" style="color:var(--c-llm); border-color:color-mix(in srgb, var(--c-llm) 40%, transparent); background:var(--c-llm-soft);">Não permitida</span></td>
+          <td><strong>Somente leitura.</strong> O assistente nunca aprova, rejeita, cria ou altera solicitações.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="oneliner" style="margin-top:32px;">
+    <span class="label">Resumo em uma frase</span>
+    <p>
+      A IA do SQMS combina um LLM com recuperação de documentos corporativos, usando BM25 como busca
+      lexical ativa, enquanto embeddings e reranking existem como recursos opcionais desabilitados por
+      padrão.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="obs">
+    <strong>Observação:</strong> configuração padrão observada no código — BM25 ativo; embeddings e
+    reranking desabilitados.
+  </div>
+  <p style="margin-top:14px;">
+    Documento técnico interno · Assistente SQMS · Salcomp. Página estática, sem backend: pode ser aberta
+    direto no navegador ou compartilhada como arquivo.
+  </p>
+</footer>
+
+</div>
+
+<script>
+  (function () {
+    var button = document.getElementById('toggle-all');
+    if (!button) return;
+    var LABEL_OPEN = 'Recolher todos os detalhes técnicos';
+    var LABEL_SHUT = 'Expandir todos os detalhes técnicos';
+    button.addEventListener('click', function () {
+      var expand = button.getAttribute('aria-pressed') !== 'true';
+      document.querySelectorAll('details.tech').forEach(function (item) { item.open = expand; });
+      button.setAttribute('aria-pressed', String(expand));
+      button.textContent = expand ? LABEL_OPEN : LABEL_SHUT;
+    });
+  })();
+</script>
+</body>
+</html>
