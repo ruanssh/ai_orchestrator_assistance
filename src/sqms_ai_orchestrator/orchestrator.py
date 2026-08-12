@@ -45,6 +45,10 @@ class AIOrchestrator:
         candidates: dict[str, RankedSection] = {}
         selected_ids: list[str] = []
         queries = self._normalize_queries(plan.queries or [message], flow)
+        if self._is_organizational(message):
+            queries = self._normalize_queries(
+                [*queries, f"{message} Management Team Brazil RAG_SQMS_Organizacional"], flow,
+            )
         search_log: list[str] = []
 
         if plan.needs_knowledge:
@@ -55,6 +59,8 @@ class AIOrchestrator:
                 for query in fresh_queries:
                     search_log.append(query)
                     for result in self.knowledge.search(query, flow.id):
+                        if self._is_organizational(message) and result.section.source.name == 'RAG_SQMS_Organizacional.md':
+                            result.score += 1.0
                         current = candidates.get(result.section.id)
                         if current is None or result.score > current.score:
                             candidates[result.section.id] = result
@@ -117,6 +123,9 @@ class AIOrchestrator:
             "Crie até 3 consultas curtas e independentes, uma para cada assunto da pergunta, preservando valores e nomes. "
             "Quando houver valor monetário e aprovação, inclua uma consulta geral por alçadas e faixas de aprovação, "
             "pois a faixa aplicável precisa ser recuperada antes de responder. "
+            "Quando a pergunta mencionar pessoa, cargo, gerente, diretor, líder, responsável, área, departamento, "
+            "organograma ou quem é de uma área, inclua uma consulta específica por pessoa/cargo/área e outra por "
+            "Management Team Brazil ou RAG_SQMS_Organizacional. Priorize o documento organizacional. "
             "Para saudação ou conversa comum, use needs_knowledge=false. Não responda à pergunta."
         )
         context = "\n".join(f"{item.role}: {item.content}" for item in history[-4:])
@@ -171,6 +180,9 @@ class AIOrchestrator:
             "Use as evidências abaixo como fonte para fatos corporativos. Combine seções quando necessário. "
             "Não invente cargos, valores, regras ou etapas. Não exponha mecanismos de busca, RAG, contexto, "
             "fragmentos ou limitações dos documentos. Não diga 'não encontrei' ou 'não está detalhado'. "
+            "Para perguntas organizacionais, informe sempre o nome, cargo e área exatamente como aparecem na evidência. "
+            "Se a pergunta for sobre quem responde a quem, só informe a relação se ela estiver explicitamente escrita "
+            "na evidência; caso contrário, diga que o documento não detalha a subordinação e não infira hierarquia. "
             "Se faltar um dado essencial, diga o que é possível orientar e faça uma pergunta curta para continuar."
             if evidence else
             "Nenhuma evidência corporativa foi selecionada. Se for saudação ou conversa casual, responda "
@@ -224,3 +236,12 @@ class AIOrchestrator:
             if value and value not in normalized:
                 normalized.append(value)
         return normalized[:4]
+
+    @staticmethod
+    def _is_organizational(question: str) -> bool:
+        normalized = question.lower()
+        return bool(re.search(
+            r"\b(pessoa|cargo|gerente|diretor|diretora|líder|lider|responsável|responsavel|"
+            r"área|area|departamento|organograma|quem é|quem e|quem responde|lidera|manager|director|leader)\b",
+            normalized,
+        ))
