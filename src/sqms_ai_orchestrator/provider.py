@@ -33,7 +33,31 @@ class OpenAICompatibleProvider:
         messages: list[ChatMessage],
         *,
         temperature: float = 0.2,
+        thinking: bool = True,
+        max_tokens: int | None = None,
     ) -> str:
+        """
+        `thinking=False` manda `reasoning_effort: "none"`, o que faz o gateway
+        pular o raciocínio interno do modelo. É de longe o maior ganho de tempo
+        disponível aqui (ver Settings.llm_thinking_json).
+
+        `max_tokens` só é enviado quando o raciocínio está desligado — de
+        propósito. Com raciocínio ligado, o orçamento é consumido pelo próprio
+        raciocínio e o conteúdo visível volta VAZIO (medido: max_tokens=250
+        gastou os 250 tokens pensando e devolveu 0 caractere), o que quebraria
+        o parse de JSON silenciosamente.
+        """
+        request_payload = {
+            "model": self.model,
+            "messages": [message.model_dump() for message in messages],
+            "stream": False,
+            "temperature": temperature,
+        }
+        if not thinking:
+            request_payload["reasoning_effort"] = "none"
+            if max_tokens is not None:
+                request_payload["max_tokens"] = max_tokens
+
         response: httpx.Response | None = None
         for attempt in range(3):
             try:
@@ -43,12 +67,7 @@ class OpenAICompatibleProvider:
                         "Authorization": f"Bearer {self.api_key}",
                         "Content-Type": "application/json",
                     },
-                    json={
-                        "model": self.model,
-                        "messages": [message.model_dump() for message in messages],
-                        "stream": False,
-                        "temperature": temperature,
-                    },
+                    json=request_payload,
                 )
             except (httpx.ConnectError, httpx.ReadTimeout):
                 if attempt == 2:
@@ -69,8 +88,15 @@ class OpenAICompatibleProvider:
             raise RuntimeError("O provider não retornou conteúdo.")
         return content.strip()
 
-    async def complete_json(self, messages: list[ChatMessage], schema: type[T]) -> T | None:
-        raw = await self.complete(messages, temperature=0.0)
+    async def complete_json(
+        self,
+        messages: list[ChatMessage],
+        schema: type[T],
+        *,
+        thinking: bool = False,
+        max_tokens: int | None = None,
+    ) -> T | None:
+        raw = await self.complete(messages, temperature=0.0, thinking=thinking, max_tokens=max_tokens)
         payload = extract_json_object(raw)
         if payload is None:
             return None

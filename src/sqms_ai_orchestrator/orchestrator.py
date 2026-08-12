@@ -124,7 +124,9 @@ class AIOrchestrator:
             result = await self.provider.complete_json([
                 ChatMessage(role="system", content=prompt),
                 ChatMessage(role="user", content=f"Fluxo: {flow.name}\nHistórico:\n{context}\nPergunta: {question}"),
-            ], SearchPlan)
+            ], SearchPlan,
+                thinking=self.settings.llm_thinking_json,
+                max_tokens=self.settings.llm_max_tokens_json)
         except Exception:
             result = None
         return result or SearchPlan(queries=[question], topics=[], needs_knowledge=self._looks_like_knowledge(question))
@@ -152,7 +154,9 @@ class AIOrchestrator:
             return await self.provider.complete_json([
                 ChatMessage(role="system", content=prompt),
                 ChatMessage(role="user", content=f"Pergunta: {question}\nTópicos: {topics}\n\nCandidatos:\n{catalog}"),
-            ], EvidenceDecision)
+            ], EvidenceDecision,
+                thinking=self.settings.llm_thinking_json,
+                max_tokens=self.settings.llm_max_tokens_json)
         except Exception:
             return None
 
@@ -182,7 +186,12 @@ class AIOrchestrator:
                 content=f"Pergunta atual: {question}\n\nEVIDÊNCIAS CORPORATIVAS:\n{evidence or '(nenhuma)'}",
             ),
         ]
-        return await self.provider.complete(messages, temperature=0.25)
+        return await self.provider.complete(
+            messages,
+            temperature=0.25,
+            thinking=self.settings.llm_thinking_answer,
+            max_tokens=self.settings.llm_max_tokens_answer,
+        )
 
     def _pack_evidence(self, sections: list[DocumentSection]) -> str:
         max_chars = self.settings.max_evidence_tokens * 4

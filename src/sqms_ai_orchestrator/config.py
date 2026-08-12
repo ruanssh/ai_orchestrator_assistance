@@ -29,6 +29,15 @@ class Settings(BaseSettings):
     llm_context_tokens: int = 4096
     llm_timeout_seconds: float = 120.0
 
+    # O modelo do gateway raciocina antes de responder, e o raciocínio domina o
+    # tempo: medido no gpt do gateway, _plan gastou 4.360 tokens de saída para
+    # um JSON de 40 tokens (31,6s). Desligado, a mesma chamada leva 1,1s com o
+    # mesmo JSON. Ligar de volta é só subir a env, sem deploy.
+    llm_thinking_json: bool = False       # _plan / _select_evidence
+    llm_thinking_answer: bool = False     # _answer
+    llm_max_tokens_json: int = 512
+    llm_max_tokens_answer: int = 1600
+
     semantic_enabled: bool = False
     embedding_model: str = "BAAI/bge-m3"
     rerank_enabled: bool = False
