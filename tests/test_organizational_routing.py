@@ -8,6 +8,11 @@ def test_organizational_questions_are_detected():
     assert AIOrchestrator._is_organizational('Quem é o GM?')
 
 
+def test_organizational_queries_normalize_dotted_it_acronyms():
+    assert AIOrchestrator._normalize_organizational_query('quem é o gerente de T.I.?') == 'quem é o gerente de TI?'
+    assert AIOrchestrator._normalize_organizational_query('responsável por I.T.') == 'responsável por IT'
+
+
 def test_operational_question_is_not_organizational():
     assert not AIOrchestrator._is_organizational('Como criar uma cotação no SQMS?')
 

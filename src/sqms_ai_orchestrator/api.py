@@ -38,7 +38,12 @@ async def search(payload: SearchRequest, request: Request) -> SearchResponse:
         request.app.state.flows.get(flow_id)
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
-    results = request.app.state.knowledge.search(payload.query, flow_id, payload.limit)
+    results = request.app.state.knowledge.search(
+        payload.query,
+        flow_id,
+        payload.limit,
+        source_name=payload.document,
+    )
     return SearchResponse(
         query=payload.query,
         results=[

@@ -49,10 +49,27 @@ class KnowledgeBase:
         self.semantic.index(section_list)
         return {flow_id: len(ids) for flow_id, ids in flow_sections.items()}
 
-    def search(self, query: str, flow_id: str, limit: int | None = None) -> list[RankedSection]:
+    def search(
+        self,
+        query: str,
+        flow_id: str,
+        limit: int | None = None,
+        source_name: str | None = None,
+    ) -> list[RankedSection]:
         allowed = self.flow_sections.get(flow_id, set())
-        lexical = [item for item in self.lexical.search(query, self.lexical_candidates) if item.section.id in allowed]
-        semantic = [item for item in self.semantic.search(query, self.semantic_candidates) if item.section.id in allowed]
+        # A source-restricted query must retrieve across the full index first;
+        # filtering after the normal top-N would lose relevant sections when
+        # another document happens to contain more generic matching terms.
+        lexical_limit = len(self.sections) if source_name else self.lexical_candidates
+        semantic_limit = len(self.sections) if source_name else self.semantic_candidates
+        lexical = [
+            item for item in self.lexical.search(query, lexical_limit)
+            if item.section.id in allowed and (source_name is None or item.section.source.name == source_name)
+        ]
+        semantic = [
+            item for item in self.semantic.search(query, semantic_limit)
+            if item.section.id in allowed and (source_name is None or item.section.source.name == source_name)
+        ]
         candidates = reciprocal_rank_fusion([lexical, semantic], max(self.final_candidates * 2, 12))
         return self.reranker.rerank(query, candidates, limit or self.final_candidates)
 

@@ -40,6 +40,7 @@ class ChatResponse(BaseModel):
 class SearchRequest(BaseModel):
     query: str = Field(min_length=1, max_length=4_000)
     flow_id: str | None = None
+    document: str | None = Field(default=None, max_length=255)
     limit: int = Field(default=8, ge=1, le=30)
 
 

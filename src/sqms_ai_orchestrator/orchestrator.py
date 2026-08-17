@@ -28,6 +28,9 @@ from .models import (
 from .provider import OpenAICompatibleProvider
 
 
+ORGANIZATIONAL_DOCUMENT = 'RAG_SQMS_Organizacional.md'
+
+
 class AIOrchestrator:
     def __init__(
         self,
@@ -53,14 +56,18 @@ class AIOrchestrator:
         resolved_session = session_id or uuid.uuid4().hex
         flow = self.flows.get(flow_id or self.settings.default_flow)
         history = self.memory.get(resolved_session)
+        organizational = self._is_organizational(message)
         plan = await self._plan(message, history, flow)
+        # Organizational answers must always be grounded in the corporate
+        # directory, even when the planner LLM fails or returns false.
+        if organizational:
+            plan.needs_knowledge = True
         candidates: dict[str, RankedSection] = {}
         selected_ids: list[str] = []
         queries = self._normalize_queries(plan.queries or [message], flow)
-        if self._is_organizational(message):
-            queries = self._normalize_queries(
-                [*queries, f"{message} Management Team Brazil RAG_SQMS_Organizacional"], flow,
-            )
+        if organizational:
+            queries = [self._normalize_organizational_query(query) for query in queries]
+            queries = self._normalize_queries([*queries, self._normalize_organizational_query(message)], flow)
         search_log: list[str] = []
 
         if plan.needs_knowledge:
@@ -70,8 +77,12 @@ class AIOrchestrator:
                     break
                 for query in fresh_queries:
                     search_log.append(query)
-                    for result in self.knowledge.search(query, flow.id):
-                        if self._is_organizational(message) and result.section.source.name == 'RAG_SQMS_Organizacional.md':
+                    for result in self.knowledge.search(
+                        query,
+                        flow.id,
+                        source_name=ORGANIZATIONAL_DOCUMENT if organizational else None,
+                    ):
+                        if organizational:
                             result.score += 1.0
                         current = candidates.get(result.section.id)
                         if current is None or result.score > current.score:
@@ -150,7 +161,11 @@ class AIOrchestrator:
                 max_tokens=self.settings.llm_max_tokens_json)
         except Exception:
             result = None
-        return result or SearchPlan(queries=[question], topics=[], needs_knowledge=self._looks_like_knowledge(question))
+        return result or SearchPlan(
+            queries=[question],
+            topics=[],
+            needs_knowledge=self._looks_like_knowledge(question) or self._is_organizational(question),
+        )
 
     async def _select_evidence(
         self,
@@ -259,3 +274,9 @@ class AIOrchestrator:
             r"área|area|departamento|organograma|quem é|quem e|quem responde|lidera|gm|manager|general manager|gerente geral|director|leader)\b",
             normalized,
         ))
+
+    @staticmethod
+    def _normalize_organizational_query(query: str) -> str:
+        normalized = re.sub(r'\bt\s*\.\s*i\.?(?!\w)', 'TI', query, flags=re.IGNORECASE)
+        normalized = re.sub(r'\bi\s*\.\s*t\.?(?!\w)', 'IT', normalized, flags=re.IGNORECASE)
+        return normalized

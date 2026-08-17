@@ -56,8 +56,29 @@ def test_real_procedures_return_expected_documents() -> None:
         "quem aprova pedido de compra acima de R$ 10.000": "RAG_COTAÇÃO_COMPRAS.md",
         "notebook para AutoCAD": "RAG_BASELINE_NOTEBOOK_COMPUTADOR.md",
         "quem é o GM": "RAG_SQMS_Organizacional.md",
+        "quem é nadyson": "RAG_SQMS_Organizacional.md",
+        "quem é celio": "RAG_SQMS_Organizacional.md",
+        "gerente de T.I.": "RAG_SQMS_Organizacional.md",
     }
     for query, expected_document in cases.items():
         results = knowledge.search(query, "procurement", 5)
         assert results
         assert results[0].section.source.name == expected_document
+
+    organizational = knowledge.search(
+        'gerente de TI',
+        'procurement',
+        5,
+        source_name='RAG_SQMS_Organizacional.md',
+    )
+    assert organizational
+    assert organizational[0].section.heading_path[-1] == 'Nadyson Oliveira'
+
+    celio = knowledge.search(
+        'quem é celio',
+        'procurement',
+        5,
+        source_name='RAG_SQMS_Organizacional.md',
+    )
+    assert celio
+    assert celio[0].section.heading_path[-1] == 'Célio Oliveira'
