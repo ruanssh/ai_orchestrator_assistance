@@ -1,6 +1,18 @@
 import re
 import uuid
 
+
+_EMOJI_RE = re.compile(
+    r'[\U0001F1E6-\U0001F1FF\U0001F300-\U0001FAFF\u2300-\u23FF\u2600-\u27BF\u2B00-\u2BFF\u200D\uFE0F\U0001F3FB-\U0001F3FF]+'
+)
+
+
+def strip_emojis(text: str) -> str:
+    """Keep assistant answers professional even when the model adds emojis."""
+    cleaned = _EMOJI_RE.sub('', text)
+    cleaned = re.sub(r'[ \t]+\n', '\n', cleaned)
+    return re.sub(r' {2,}', ' ', cleaned).strip()
+
 from .config import Settings
 from .flows import FlowConfig, FlowRegistry
 from .knowledge import KnowledgeBase
@@ -180,13 +192,14 @@ class AIOrchestrator:
             "Use as evidências abaixo como fonte para fatos corporativos. Combine seções quando necessário. "
             "Não invente cargos, valores, regras ou etapas. Não exponha mecanismos de busca, RAG, contexto, "
             "fragmentos ou limitações dos documentos. Não diga 'não encontrei' ou 'não está detalhado'. "
+            "Escreva de forma profissional e objetiva, sem usar emojis, ícones decorativos ou emoticons. "
             "Para perguntas organizacionais, informe sempre o nome, cargo e área exatamente como aparecem na evidência. "
             "Se a pergunta for sobre quem responde a quem, só informe a relação se ela estiver explicitamente escrita "
             "na evidência; caso contrário, diga que o documento não detalha a subordinação e não infira hierarquia. "
             "Se faltar um dado essencial, diga o que é possível orientar e faça uma pergunta curta para continuar."
             if evidence else
             "Nenhuma evidência corporativa foi selecionada. Se for saudação ou conversa casual, responda "
-            "natural e breve. Se a pergunta for sobre SQMS/compras/aprovações mas só faltar evidência, faça "
+            "natural e breve, sem emojis. Se a pergunta for sobre SQMS/compras/aprovações mas só faltar evidência, faça "
             "uma pergunta curta para esclarecer, sem inventar informações. Se for qualquer outro assunto, "
             "siga a regra de escopo do system prompt: recuse o conteúdo e ofereça no que pode ajudar."
         )
@@ -198,12 +211,13 @@ class AIOrchestrator:
                 content=f"Pergunta atual: {question}\n\nEVIDÊNCIAS CORPORATIVAS:\n{evidence or '(nenhuma)'}",
             ),
         ]
-        return await self.provider.complete(
+        answer = await self.provider.complete(
             messages,
             temperature=0.25,
             thinking=self.settings.llm_thinking_answer,
             max_tokens=self.settings.llm_max_tokens_answer,
         )
+        return strip_emojis(answer)
 
     def _pack_evidence(self, sections: list[DocumentSection]) -> str:
         max_chars = self.settings.max_evidence_tokens * 4

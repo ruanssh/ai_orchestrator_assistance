@@ -37,7 +37,9 @@ class Settings(BaseSettings):
     llm_thinking_json: bool = False       # _plan / _select_evidence
     llm_thinking_answer: bool = False     # _answer
     llm_max_tokens_json: int = 512
-    llm_max_tokens_answer: int = 1600
+    # The final answer must not be cut off by an artificial output cap. The
+    # provider/context window remains the natural safety boundary.
+    llm_max_tokens_answer: int | None = None
 
     semantic_enabled: bool = False
     embedding_model: str = "BAAI/bge-m3"
