@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     llm_model: str = "auto"
     llm_context_tokens: int = 4096
     llm_timeout_seconds: float = 120.0
+    llm_reasoning_effort: str = "auto"
 
     # O modelo do gateway raciocina antes de responder, e o raciocínio domina o
     # tempo: medido no gpt do gateway, _plan gastou 4.360 tokens de saída para

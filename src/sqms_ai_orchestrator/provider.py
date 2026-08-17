@@ -1,5 +1,7 @@
 import asyncio
 import json
+import logging
+import os
 from json import JSONDecodeError
 from typing import TypeVar
 
@@ -10,6 +12,36 @@ from .models import ChatMessage
 
 
 T = TypeVar("T", bound=BaseModel)
+
+logger = logging.getLogger(__name__)
+_REASONING_EFFORTS = ("none", "low", "medium", "high", "xhigh", "max")
+_REASONING_CACHE: dict[tuple[str, str], str | None] = {}
+_NO_FALLBACK = object()
+
+
+def _configured_reasoning_effort() -> str | None:
+    value = os.getenv("SQMS_AI_REASONING_EFFORT", "auto").strip().lower()
+    if value in {"", "omit", "off"}:
+        return None
+    return "none" if value == "auto" else value
+
+
+def _reasoning_fallback(body: str, current: str | None):
+    try:
+        payload = json.loads(body)
+        message = payload.get("error", {}).get("message", "")
+    except (TypeError, JSONDecodeError):
+        message = body
+
+    normalized = str(message).lower()
+    if "reasoning_effort" not in normalized:
+        return _NO_FALLBACK
+
+    supported = [value for value in _REASONING_EFFORTS if f"'{value}'" in normalized]
+    for value in supported:
+        if value != current:
+            return value
+    return None if current is not None else _NO_FALLBACK
 
 
 class OpenAICompatibleProvider:
@@ -37,9 +69,9 @@ class OpenAICompatibleProvider:
         max_tokens: int | None = None,
     ) -> str:
         """
-        `thinking=False` manda `reasoning_effort: "none"`, o que faz o gateway
-        pular o raciocínio interno do modelo. É de longe o maior ganho de tempo
-        disponível aqui (ver Settings.llm_thinking_json).
+        `thinking=False` negocia o reasoning effort com o gateway. Alguns
+        provedores aceitam `none`, outros aceitam apenas `low` ou não aceitam
+        essa extensão; a opção válida fica em cache por URL/modelo.
 
         `max_tokens` só é enviado quando o raciocínio está desligado — de
         propósito. Com raciocínio ligado, o orçamento é consumido pelo próprio
@@ -53,22 +85,44 @@ class OpenAICompatibleProvider:
             "stream": False,
             "temperature": temperature,
         }
+        cache_key = (self.base_url, self.model)
         if not thinking:
-            request_payload["reasoning_effort"] = "none"
+            configured = _REASONING_CACHE.get(cache_key, _configured_reasoning_effort())
+            if configured is not None:
+                request_payload["reasoning_effort"] = configured
             if max_tokens is not None:
                 request_payload["max_tokens"] = max_tokens
 
         response: httpx.Response | None = None
         for attempt in range(3):
             try:
-                response = await self.client.post(
-                    f"{self.base_url}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json=request_payload,
-                )
+                compatibility_attempts = 0
+                while True:
+                    response = await self.client.post(
+                        f"{self.base_url}/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {self.api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json=dict(request_payload),
+                    )
+                    if not thinking and response.status_code in {400, 422}:
+                        current = request_payload.get("reasoning_effort")
+                        fallback = _reasoning_fallback(response.text, current)
+                        if fallback is not _NO_FALLBACK and compatibility_attempts < 2:
+                            if fallback is None:
+                                request_payload.pop("reasoning_effort", None)
+                            else:
+                                request_payload["reasoning_effort"] = fallback
+                            _REASONING_CACHE[cache_key] = fallback
+                            compatibility_attempts += 1
+                            logger.info(
+                                "LLM reasoning_effort fallback: %s -> %s",
+                                current or "omitted",
+                                fallback or "omitted",
+                            )
+                            continue
+                    break
             except (httpx.ConnectError, httpx.ReadTimeout):
                 if attempt == 2:
                     raise

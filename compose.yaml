@@ -10,6 +10,7 @@ services:
       SQMS_AI_LLM_API_KEY: ${SQMS_AI_LLM_API_KEY:-EMPTY}
       SQMS_AI_LLM_MODEL: ${SQMS_AI_LLM_MODEL:-auto}
       SQMS_AI_LLM_CONTEXT_TOKENS: ${SQMS_AI_LLM_CONTEXT_TOKENS:-4096}
+      SQMS_AI_REASONING_EFFORT: ${SQMS_AI_REASONING_EFFORT:-auto}
     volumes:
       - ../procedures_rag:/procedures_rag:ro
       - sqms_ai_data:/app/data
