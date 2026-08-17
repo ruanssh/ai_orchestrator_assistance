@@ -5,6 +5,7 @@ def test_organizational_questions_are_detected():
     assert AIOrchestrator._is_organizational('Quem é o gerente de TI?')
     assert AIOrchestrator._is_organizational('Quem é responsável por Procurement?')
     assert AIOrchestrator._is_organizational('Qual o cargo de Nadyson Oliveira?')
+    assert AIOrchestrator._is_organizational('Quem é o GM?')
 
 
 def test_operational_question_is_not_organizational():

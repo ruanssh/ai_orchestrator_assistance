@@ -55,6 +55,7 @@ def test_real_procedures_return_expected_documents() -> None:
         "como adicionar aprovadores": "RAG_SQMS_CAMPOS.md",
         "quem aprova pedido de compra acima de R$ 10.000": "RAG_COTAÇÃO_COMPRAS.md",
         "notebook para AutoCAD": "RAG_BASELINE_NOTEBOOK_COMPUTADOR.md",
+        "quem é o GM": "RAG_SQMS_Organizacional.md",
     }
     for query, expected_document in cases.items():
         results = knowledge.search(query, "procurement", 5)

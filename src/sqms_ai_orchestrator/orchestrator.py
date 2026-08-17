@@ -135,7 +135,7 @@ class AIOrchestrator:
             "Crie até 3 consultas curtas e independentes, uma para cada assunto da pergunta, preservando valores e nomes. "
             "Quando houver valor monetário e aprovação, inclua uma consulta geral por alçadas e faixas de aprovação, "
             "pois a faixa aplicável precisa ser recuperada antes de responder. "
-            "Quando a pergunta mencionar pessoa, cargo, gerente, diretor, líder, responsável, área, departamento, "
+            "Quando a pergunta mencionar pessoa, cargo, GM, General Manager, gerente geral, gerente, diretor, líder, responsável, área, departamento, "
             "organograma ou quem é de uma área, inclua uma consulta específica por pessoa/cargo/área e outra por "
             "Management Team Brazil ou RAG_SQMS_Organizacional. Priorize o documento organizacional. "
             "Para saudação ou conversa comum, use needs_knowledge=false. Não responda à pergunta."
@@ -256,6 +256,6 @@ class AIOrchestrator:
         normalized = question.lower()
         return bool(re.search(
             r"\b(pessoa|cargo|gerente|diretor|diretora|líder|lider|responsável|responsavel|"
-            r"área|area|departamento|organograma|quem é|quem e|quem responde|lidera|manager|director|leader)\b",
+            r"área|area|departamento|organograma|quem é|quem e|quem responde|lidera|gm|manager|general manager|gerente geral|director|leader)\b",
             normalized,
         ))
